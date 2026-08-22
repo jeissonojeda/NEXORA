@@ -1,0 +1,83 @@
+import logging
+import sys
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+
+from app.api.routes.health import router as health_router
+from app.core.config import get_settings
+
+settings = get_settings()
+
+logging.basicConfig(
+    level=logging.DEBUG if settings.DEBUG else logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)],
+)
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    logger.info(f"Starting {settings.APP_NAME} in {settings.APP_ENV} mode")
+    yield
+    logger.info("Shutting down application")
+
+
+app = FastAPI(
+    title=settings.APP_NAME,
+    version="1.0.0",
+    docs_url="/api/docs" if not settings.is_production else None,
+    redoc_url="/api/redoc" if not settings.is_production else None,
+    lifespan=lifespan,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins_list,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(health_router, prefix="/api")
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    logger.error(f"Unhandled exception: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": "Internal server error",
+            "error_code": "INTERNAL_ERROR",
+            "status_code": 500,
+        },
+    )
+
+
+@app.exception_handler(404)
+async def not_found_handler(request: Request, exc: Exception) -> JSONResponse:
+    return JSONResponse(
+        status_code=404,
+        content={
+            "detail": "Resource not found",
+            "error_code": "NOT_FOUND",
+            "status_code": 404,
+        },
+    )
+
+
+@app.exception_handler(422)
+async def validation_error_handler(request: Request, exc: Exception) -> JSONResponse:
+    return JSONResponse(
+        status_code=422,
+        content={
+            "detail": "Validation error",
+            "error_code": "VALIDATION_ERROR",
+            "status_code": 422,
+        },
+    )

@@ -1,0 +1,65 @@
+# Environment variables
+.env
+.env.local
+.env.production
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+*.egg
+venv/
+.venv/
+env/
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Frontend build
+frontend/dist/
+frontend/build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+.pytest_cache/
+backend/test.db
+*.sqlite3
+
+# Reports (generated)
+backend/reports_output/
+*.pdf
+*.xlsx
+
+# Logs
+*.log
+logs/
+
+# Alembic
+alembic/versions/*.pyc
+
+# Temp files
+*.tmp
+*.temp
+*.bak
