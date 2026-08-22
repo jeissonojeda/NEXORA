@@ -9,6 +9,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from app.core.config import get_settings
 from app.db.base import Base
+import app.models  # noqa: F401  (registra los modelos en Base.metadata)
 
 settings = get_settings()
 

@@ -90,6 +90,78 @@ alembic revision --autogenerate -m "descripcion del cambio"
 alembic upgrade head
 ```
 
+Verificar reversibilidad de una migración:
+
+```bash
+$env:DATABASE_URL='sqlite:///./migration_check.db'   # Windows PowerShell
+alembic upgrade head
+alembic downgrade base
+alembic upgrade head
+Remove-Item migration_check.db
+```
+
+## Autenticación, Usuarios y Roles (Fase 2)
+
+### Primer arranque (obligatorio)
+
+```bash
+cd backend
+
+# 1. Roles y permisos iniciales (idempotente)
+python -m app.cli seed-rbac
+
+# 2. Primer administrador (interactivo; pide contraseña oculta)
+python -m app.cli create-admin
+```
+
+`create-admin` valida los datos con los mismos schemas Pydantic del API,
+pide la contraseña con `getpass` y solo almacena el hash bcrypt.
+Si ya existen administradores pide confirmación antes de crear otro.
+
+### Flujo JWT
+
+1. `POST /api/auth/login` con form-urlencoded (`username`, `password`) → `{"access_token": "...", "token_type": "bearer"}`.
+2. El token JWT contiene solo `sub` (id usuario) y `exp`.
+3. Peticiones protegidas envían `Authorization: Bearer <token>`.
+4. La autorización se resuelve SIEMPRE en backend consultando roles/permisos en DB.
+
+### Roles
+
+| Rol (interno) | Nombre visible | Alcance |
+|---------------|----------------|---------|
+| `ADMIN` | Administrador | Acceso total |
+| `CASHIER` | Cajero | Ventas, clientes (lectura/creación/actualización), caja |
+| `INVENTORY_MANAGER` | Encargado de inventario | Productos, inventario, proveedores, reportes |
+
+La lógica usa únicamente el nombre interno (`Role.name`), nunca el visible.
+
+### Permisos
+
+Catálogo centralizado en `app/core/rbac.py`
+(`ALL_PERMISSIONS`, `ROLE_PERMISSIONS`). Formato `dominio.accion`.
+Para proteger un endpoint nuevo:
+
+```python
+from app.core.dependencies import require_permission
+
+@router.post("/products")
+def create_product(
+    _: Annotated[User, Depends(require_permission("products.create"))],
+    db: Annotated[Session, Depends(get_db)],
+): ...
+```
+
+Cambiar permisos de un rol = editar `ROLE_PERMISSIONS` + re-ejecutar
+`seed-rbac`; no requiere tocar endpoints.
+
+### Reglas de seguridad implementadas
+
+- Hash bcrypt (12 rondas) vía librería `bcrypt` directa (sin passlib).
+- Errores de login genéricos (evita enumeración de usuarios).
+- `DELETE /api/users/{id}` = desactivación lógica; un admin no puede autodesactivarse.
+- `UserResponse` jamás incluye `password_hash`.
+- Tokens expirados/inválidos → 401; sin permiso → 403 `PERMISSION_DENIED`.
+
 ## Ejecución
 
 ### Backend
@@ -114,10 +186,14 @@ El frontend estará disponible en: http://localhost:5173
 
 ## Endpoints Disponibles
 
-| Método | Ruta | Descripción |
-|--------|------|------------|
-| GET | `/api/health` | Estado del sistema |
-| GET | `/api/info` | Información de la aplicación |
+| Método | Ruta | Descripción | Permisos |
+|--------|------|-------------|----------|
+| GET | `/api/health` | Estado del sistema | público |
+| GET | `/api/info` | Información de la aplicación | público |
+| POST | `/api/auth/login` | Login OAuth2 → JWT | público |
+| GET | `/api/auth/me` | Usuario autenticado actual | JWT válido |
+| GET/POST | `/api/users` | Listar / crear usuarios | `users.read` / `users.create` |
+| GET/PATCH/DELETE | `/api/users/{id}` | Ver / actualizar / desactivar usuario | `users.*` |
 
 ## Tests
 
@@ -185,14 +261,15 @@ sistema-facturacion-inventario-ia/
 ├── backend/
 │   ├── app/
 │   │   ├── main.py          # Punto de entrada FastAPI
-│   │   ├── core/            # Config, security, dependencies
-│   │   ├── db/              # Session, base declarativa
-│   │   ├── models/          # Modelos SQLAlchemy
+│   │   ├── core/            # Config, security (JWT+bcrypt), rbac, dependencies
+│   │   ├── db/              # Session, base declarativa, seed (roles/permisos)
+│   │   ├── models/          # Modelos SQLAlchemy (User, Role, Permission)
 │   │   ├── schemas/         # Schemas Pydantic
 │   │   ├── repositories/    # Acceso a datos
 │   │   ├── services/        # Lógica de negocio
 │   │   ├── api/routes/      # Endpoints HTTP
-│   │   ├── auth/            # Autenticación
+│   │   ├── cli.py           # seed-rbac, create-admin
+│   │   ├── auth/            # Reservado para utilidades de auth
 │   │   ├── ai/              # Integración IA
 │   │   └── reports/         # Generación de reportes
 │   ├── tests/               # Pruebas

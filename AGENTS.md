@@ -2,7 +2,7 @@
 
 ## Status
 
-Fase actual: Fase 1 (Fundamentos) completada. Siguiente: Fase 2 (Catálogos).
+Fase actual: Fase 2 (Autenticación, Usuarios y Roles) completada. Siguiente: Fase 3 (Catálogos).
 
 ## Project intent
 
@@ -16,23 +16,24 @@ Ver `docs/ARCHITECTURE.md` para la documentación completa.
 
 ```
 backend/app/
-  core/         → config, security, dependencies
-  db/           → session, base, seed
-  models/       → SQLAlchemy entities
+  core/         → config, security (JWT+bcrypt), rbac, dependencies, exceptions
+  db/           → session, base, seed (roles/permisos)
+  models/       → SQLAlchemy entities (User, Role, Permission)
   schemas/      → Pydantic validation
   repositories/ → data access (CRUD base genérico)
   services/     → business logic (aquí va la magia)
   api/routes/   → HTTP endpoints (sin lógica de negocio)
+  cli.py        → python -m app.cli (seed-rbac, create-admin)
   ai/           → OpenAI integration
   reports/      → PDF & Excel generation
 
 frontend/src/
   components/   → ui/ (genéricos) + domain/ (específicos)
   pages/        → una carpeta por módulo
-  services/     → Axios calls, una por dominio
+  services/     → Axios calls, una por dominio (api.ts + auth.ts)
   contexts/     → AuthContext
   hooks/        → custom hooks
-  types/        → interfaces TypeScript
+  types/        → interfaces TypeScript (+ auth.ts)
 ```
 
 ## Development commands
@@ -66,6 +67,9 @@ docker compose config                  # validar compose
 - Variables sensibles en `.env`, nunca hardcodeadas.
 - No instalar dependencias sin verificar que no exista una alternativa ya en el proyecto.
 - Frontend oculta/deshabilita elementos según permisos del usuario.
+- Endpoints nuevos se protegen con `Depends(require_permission("dominio.accion"))` (ver `app/core/rbac.py`).
+- Nunca devolver `password_hash` ni secretos en respuestas API.
+- La autorización SIEMPRE en backend; nunca confiar en datos del frontend.
 
 ## Testing
 

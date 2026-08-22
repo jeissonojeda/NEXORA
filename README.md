@@ -4,7 +4,7 @@ Sistema web profesional para la gestión integral de un supermercado, con módul
 
 ## Estado
 
-**Fase 1 — Fundamentos** completada. Backend y frontend configurados con estructura base.
+**Fase 1 — Fundamentos** y **Fase 2 — Autenticación, Usuarios y Roles** completadas.
 
 ## Arquitectura
 
@@ -65,13 +65,42 @@ docker compose up -d db
 
 O crear la base de datos manualmente en PostgreSQL.
 
+### 4. Primer Administrador
+
+```bash
+cd backend
+
+# 1. Crear roles y permisos iniciales (idempotente)
+python -m app.cli seed-rbac
+
+# 2. Crear el primer administrador de forma interactiva
+#    (solicita username, email, nombre, apellido y contraseña por teclado)
+python -m app.cli create-admin
+```
+
+Nunca se usan credenciales fijas en el código; la contraseña se pide de forma interactiva y solo se guarda su hash bcrypt.
+
+## Autenticación y Roles
+
+- Login vía `POST /api/auth/login` (formato OAuth2 form-urlencoded) → JWT bearer.
+- El JWT contiene únicamente `sub` (id del usuario) y `exp`.
+- Autorización RBAC en backend con permisos granulares (`users.read`, `sales.create`, ...).
+- Roles: `ADMIN` (todo), `CASHIER` (ventas, clientes, caja), `INVENTORY_MANAGER` (productos, inventario, proveedores, reportes).
+
 ## Endpoints Disponibles
 
-| Método | Ruta | Descripción |
-|--------|------|------------|
-| GET | `/api/health` | Estado del sistema y conexión DB |
-| GET | `/api/info` | Información de la aplicación |
-| GET | `/api/docs` | Documentación Swagger (dev) |
+| Método | Ruta | Descripción | Permisos |
+|--------|------|-------------|----------|
+| GET | `/api/health` | Estado del sistema y conexión DB | público |
+| GET | `/api/info` | Información de la aplicación | público |
+| POST | `/api/auth/login` | Login OAuth2 → JWT | público |
+| GET | `/api/auth/me` | Usuario autenticado actual | JWT válido |
+| GET | `/api/users` | Listar usuarios | `users.read` |
+| GET | `/api/users/{id}` | Obtener usuario | `users.read` |
+| POST | `/api/users` | Crear usuario (+ rol) | `users.create` |
+| PATCH | `/api/users/{id}` | Actualizar usuario / rol / estado | `users.update` |
+| DELETE | `/api/users/{id}` | Desactivar usuario (borrado lógico) | `users.delete` |
+| GET | `/api/docs` | Documentación Swagger (dev) | — |
 
 ## Variables de Entorno
 

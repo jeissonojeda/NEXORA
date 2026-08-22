@@ -45,6 +45,8 @@ coverage.xml
 *.cover
 .pytest_cache/
 backend/test.db
+backend/demo_auth.db
+backend/migration_check.db
 *.sqlite3
 
 # Reports (generated)

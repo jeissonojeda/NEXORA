@@ -7,8 +7,11 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from app.api.routes.auth import router as auth_router
 from app.api.routes.health import router as health_router
+from app.api.routes.users import router as users_router
 from app.core.config import get_settings
+from app.core.exceptions import AppError
 
 settings = get_settings()
 
@@ -44,6 +47,21 @@ app.add_middleware(
 )
 
 app.include_router(health_router, prefix="/api")
+app.include_router(auth_router, prefix="/api")
+app.include_router(users_router, prefix="/api")
+
+
+@app.exception_handler(AppError)
+async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "detail": exc.message,
+            "error_code": exc.error_code,
+            "status_code": exc.status_code,
+        },
+        headers=exc.headers,
+    )
 
 
 @app.exception_handler(Exception)
