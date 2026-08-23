@@ -2,7 +2,7 @@
 
 ## Status
 
-Fase actual: Fase 2 (Autenticación, Usuarios y Roles) completada. Siguiente: Fase 3 (Catálogos).
+Fase actual: Fase 3 (Productos e Inventario) completada. Siguiente: Fase 4 (Proveedores).
 
 ## Project intent
 
@@ -18,9 +18,9 @@ Ver `docs/ARCHITECTURE.md` para la documentación completa.
 backend/app/
   core/         → config, security (JWT+bcrypt), rbac, dependencies, exceptions
   db/           → session, base, seed (roles/permisos)
-  models/       → SQLAlchemy entities (User, Role, Permission)
+  models/       → SQLAlchemy entities (User, Role, Permission, Supplier, Category, Product, InventoryMovement)
   schemas/      → Pydantic validation
-  repositories/ → data access (CRUD base genérico)
+  repositories/ → data access (CRUD base genérico + repos de catálogo/inventario)
   services/     → business logic (aquí va la magia)
   api/routes/   → HTTP endpoints (sin lógica de negocio)
   cli.py        → python -m app.cli (seed-rbac, create-admin)
@@ -29,11 +29,11 @@ backend/app/
 
 frontend/src/
   components/   → ui/ (genéricos) + domain/ (específicos)
-  pages/        → una carpeta por módulo
-  services/     → Axios calls, una por dominio (api.ts + auth.ts)
-  contexts/     → AuthContext
-  hooks/        → custom hooks
-  types/        → interfaces TypeScript (+ auth.ts)
+  pages/        → una carpeta por módulo (auth, categories, products, inventory)
+  services/     → Axios calls, una por dominio (api.ts + auth.ts + categories/products/inventory)
+  contexts/     → AuthContext (sesión JWT restaurada desde localStorage)
+  hooks/        → custom hooks (useAsync, useHealth)
+  types/        → interfaces TypeScript (+ auth.ts, catalog.ts)
 ```
 
 ## Development commands

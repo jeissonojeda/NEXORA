@@ -108,3 +108,69 @@ def inactive_user(db_session: Session, rbac_seeded: None) -> User:
 def auth_headers(user: User) -> dict[str, str]:
     token = create_access_token(data={"sub": str(user.id)})
     return {"Authorization": f"Bearer {token}"}
+
+
+_category_counter = {"n": 0}
+_product_counter = {"n": 0}
+
+
+@pytest.fixture(scope="function")
+def make_category(db_session: Session):
+    from app.models.category import Category
+
+    def _factory(
+        name: str | None = None,
+        description: str | None = None,
+        is_active: bool = True,
+    ) -> Category:
+        _category_counter["n"] += 1
+        category = Category(
+            name=name or f"Categoría {_category_counter['n']}",
+            description=description,
+            is_active=is_active,
+        )
+        db_session.add(category)
+        db_session.commit()
+        db_session.refresh(category)
+        return category
+
+    return _factory
+
+
+@pytest.fixture(scope="function")
+def make_product(db_session: Session, make_category):
+    from decimal import Decimal
+
+    from app.models.product import Product
+
+    def _factory(
+        name: str | None = None,
+        barcode: str | None = None,
+        category=None,
+        sale_price: str = "100.00",
+        purchase_price: str = "50.00",
+        stock: int = 10,
+        minimum_stock: int = 2,
+        is_active: bool = True,
+        **kwargs,
+    ) -> Product:
+        _product_counter["n"] += 1
+        if category is None:
+            category = make_category()
+        product = Product(
+            name=name or f"Producto {_product_counter['n']}",
+            barcode=barcode,
+            purchase_price=Decimal(purchase_price),
+            sale_price=Decimal(sale_price),
+            category_id=category.id,
+            stock=stock,
+            minimum_stock=minimum_stock,
+            is_active=is_active,
+            **kwargs,
+        )
+        db_session.add(product)
+        db_session.commit()
+        db_session.refresh(product)
+        return product
+
+    return _factory

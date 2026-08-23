@@ -22,6 +22,11 @@ class Permissions:
     PRODUCTS_UPDATE = "products.update"
     PRODUCTS_DELETE = "products.delete"
 
+    CATEGORIES_READ = "categories.read"
+    CATEGORIES_CREATE = "categories.create"
+    CATEGORIES_UPDATE = "categories.update"
+    CATEGORIES_DELETE = "categories.delete"
+
     INVENTORY_READ = "inventory.read"
     INVENTORY_CREATE = "inventory.create"
     INVENTORY_UPDATE = "inventory.update"
@@ -58,6 +63,10 @@ ALL_PERMISSIONS: dict[str, str] = {
     Permissions.PRODUCTS_CREATE: "Crear productos",
     Permissions.PRODUCTS_UPDATE: "Actualizar productos",
     Permissions.PRODUCTS_DELETE: "Eliminar productos",
+    Permissions.CATEGORIES_READ: "Ver categorías",
+    Permissions.CATEGORIES_CREATE: "Crear categorías",
+    Permissions.CATEGORIES_UPDATE: "Actualizar categorías",
+    Permissions.CATEGORIES_DELETE: "Eliminar categorías",
     Permissions.INVENTORY_READ: "Ver inventario",
     Permissions.INVENTORY_CREATE: "Registrar movimientos de inventario",
     Permissions.INVENTORY_UPDATE: "Ajustar inventario",
@@ -96,12 +105,19 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         Permissions.CASH_OPEN,
         Permissions.CASH_CLOSE,
         Permissions.CASH_MOVEMENTS,
+        Permissions.PRODUCTS_READ,
+        Permissions.CATEGORIES_READ,
+        Permissions.INVENTORY_READ,
     ),
     Roles.INVENTORY_MANAGER: _codes(
         Permissions.PRODUCTS_READ,
         Permissions.PRODUCTS_CREATE,
         Permissions.PRODUCTS_UPDATE,
         Permissions.PRODUCTS_DELETE,
+        Permissions.CATEGORIES_READ,
+        Permissions.CATEGORIES_CREATE,
+        Permissions.CATEGORIES_UPDATE,
+        Permissions.CATEGORIES_DELETE,
         Permissions.INVENTORY_READ,
         Permissions.INVENTORY_CREATE,
         Permissions.INVENTORY_UPDATE,

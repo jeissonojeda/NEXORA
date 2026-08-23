@@ -809,56 +809,96 @@ VITE_API_URL=http://localhost:8000/api
 
 ## 21. Plan de Desarrollo por Fases
 
-### Fase 1 — Fundamentos (Semana 1)
-- [ ] Configurar proyecto backend (FastAPI, SQLAlchemy, Alembic)
-- [ ] Configurar proyecto frontend (React, Vite, TypeScript, Tailwind)
-- [ ] Crear migración inicial (users, roles, permissions)
-- [ ] Implementar autenticación (login, JWT, registro)
-- [ ] Implementar RBAC básico
-- [ ] Seed de roles y permisos
-- [ ] Configurar `.env.example` y `.gitignore`
+> **Estado real:** las fases se implementaron con un orden ligeramente distinto al
+> plan original (autenticación/RBAC primero, luego catálogo e inventario). El
+> detalle vigente está en el README y AGENTS.md.
 
-### Fase 2 — Catálogos (Semana 2)
-- [ ] CRUD completo de productos
-- [ ] CRUD de categorías
-- [ ] CRUD de proveedores
-- [ ] CRUD de clientes
-- [ ] Frontend: páginas de catálogos
+### Fase 1 — Fundamentos ✅
+- [x] Configurar proyecto backend (FastAPI, SQLAlchemy, Alembic)
+- [x] Configurar proyecto frontend (React, Vite, TypeScript, Tailwind)
+- [x] Crear migración inicial y configuración base
+- [x] Health/info endpoints, manejo global de errores
+- [x] Configurar `.env.example` y `.gitignore`
 
-### Fase 3 — Inventario (Semana 3)
-- [ ] Movimientos de inventario (entrada, salida, ajuste, devolución)
-- [ ] Actualización automática de stock
-- [ ] Alertas de stock bajo
-- [ ] Historial de movimientos
-- [ ] Frontend: módulo de inventario
+### Fase 2 — Autenticación, Usuarios y Roles ✅
+- [x] Login OAuth2 form → JWT bearer; `GET /api/auth/me`
+- [x] CRUD de usuarios + activación/desactivación lógica
+- [x] RBAC completo: roles ADMIN/CASHIER/INVENTORY_MANAGER + 31 permisos granulares
+- [x] `Depends(require_permission(...))` en todos los endpoints protegidos
+- [x] Seed idempotente vía `python -m app.cli seed-rbac`; admin vía `create-admin`
 
-### Fase 4 — Ventas y Facturación (Semana 4)
+### Fase 3 — Productos e Inventario ✅
+- [x] Categorías: CRUD + desactivación lógica (bloqueada si tiene productos)
+- [x] Productos: búsqueda por nombre/código, filtros, paginación `{items,total}`
+- [x] Consulta por código de barras (solo activos; único y opcional)
+- [x] Movimientos de inventario (entrada, salida, ajuste, devolución)
+- [x] Actualización automática y atómica de stock (`SELECT ... FOR UPDATE`)
+- [x] CHECK `stock >= 0` a nivel BD como segunda línea de defensa
+- [x] Alertas de stock bajo (`GET /api/inventory/low-stock`)
+- [x] Historial inmutable con trazabilidad (stock previo/nuevo, usuario, motivo)
+- [x] Migración `0002_catalog` (suppliers, categories, products, inventory_movements)
+- [x] Frontend: páginas categorías/productos/inventario + login + AuthContext
+
+### Fase 4 — Proveedores (siguiente)
+- [ ] CRUD completo de proveedores (el modelo ya existe en `0002_catalog`)
+- [ ] Asignación proveedor-producto en la UI de productos
+
+### Fase 5 — Ventas y Facturación
 - [ ] Flujo de venta completo (carrito, totales, confirmación)
 - [ ] Transacciones de base de datos
 - [ ] Generación de facturas
 - [ ] Métodos de pago
 - [ ] Frontend: punto de venta
 
-### Fase 5 — Caja (Semana 5)
+### Fase 6 — Clientes y Créditos
+- [ ] CRUD de clientes
+- [ ] Créditos y abonos
+
+### Fase 7 — Caja
 - [ ] Apertura y cierre de caja
 - [ ] Movimientos de caja
 - [ ] Resumen de turno
-- [ ] Frontend: módulo de caja
 
-### Fase 6 — Reportes e IA (Semana 6)
+### Fase 8 — Reportes e IA
 - [ ] Reportes en PDF y Excel
 - [ ] Integración OpenAI
-- [ ] Análisis de ventas
-- [ ] Predicción de demanda
-- [ ] Recomendaciones de inventario
-- [ ] Resumen inteligente
-- [ ] Frontend: dashboard, módulo IA
+- [ ] Análisis de ventas, predicción de demanda, recomendaciones
+- [ ] Dashboard y módulo IA
 
-### Fase 7 — Pulido y Despliegue (Semana 7)
-- [ ] Pruebas unitarias e integración
+### Fase 9 — Pulido y Despliegue
 - [ ] Auditoría de operaciones
 - [ ] Optimización y seguridad
-- [ ] README profesional
-- [ ] Despliegue backend (Railway/Render)
-- [ ] Despliegue frontend (Vercel)
-- [ ] Pruebas finales en producción
+- [ ] Despliegue backend/frontend
+
+---
+
+## 21.1 Notas de implementación del catálogo e inventario (Fase 3)
+
+Decisiones vigentes que extienden/aclaran este documento:
+
+- **Dinero:** columnas `Numeric(12,2)` / `Decimal` en Python; nunca float. Pydantic
+  serializa los montos como string en JSON (ej. `"18.00"`) para evitar errores de
+  redondeo en JS; el frontend los formatea con helpers propios.
+- **Concurrencia de stock:** cada movimiento hace `SELECT ... FOR UPDATE` sobre la
+  fila del producto dentro de la transacción y recalcula stock previo/nuevo desde
+  la DB, no desde memoria. SQLite ignora el hint (tests), PostgreSQL lo aplica;
+  además existe `CHECK (stock >= 0)` como red de seguridad.
+- **Ajustes:** `new_stock` es el valor absoluto objetivo; el delta se calcula en el
+  servicio y se rechaza un ajuste sin cambio real (422). Motivo obligatorio.
+- **Movimientos inmutables:** no existen endpoints PUT/PATCH/DELETE para
+  movimientos; el historial es append-only con trazabilidad completa
+  (stock previo/nuevo, usuario creador vía FK `created_by`, motivo, referencia).
+- **Borrado lógico:** DELETE de categorías/productos = `is_active=False`. Una
+  categoría con productos activos no puede desactivarse (409 `CATEGORY_IN_USE`).
+  Los productos inactivos desaparecen de búsquedas por código de barras.
+- **Código de barras:** único pero opcional; cadena vacía se normaliza a NULL para
+  permitir múltiples productos sin código.
+- **Paginación de listados:** categorías retorna array plano; productos y
+  movimientos retornan sobre `{items, total}` para paginación en el frontend.
+- **Proveedores:** solo el modelo mínimo (id, name, contacto, is_active) quedó en
+  la migración `0002_catalog` como dependencia estructural; sin endpoints ni UI
+  hasta la fase correspondiente.
+- **Permisos nuevos:** `categories.read/create/update/delete`,
+  `products.read/create/update/delete`, `inventory.read/create/update`.
+  CASHIER tiene lectura de catálogo/inventario (necesario para ventas futuras);
+  INVENTORY_MANAGER gestiona todo el dominio; ADMIN todo.

@@ -4,7 +4,7 @@ Sistema web profesional para la gestión integral de un supermercado, con módul
 
 ## Estado
 
-**Fase 1 — Fundamentos** y **Fase 2 — Autenticación, Usuarios y Roles** completadas.
+**Fase 1 — Fundamentos**, **Fase 2 — Autenticación, Usuarios y Roles** y **Fase 3 — Productos e Inventario** completadas.
 
 ## Arquitectura
 
@@ -100,6 +100,24 @@ Nunca se usan credenciales fijas en el código; la contraseña se pide de forma 
 | POST | `/api/users` | Crear usuario (+ rol) | `users.create` |
 | PATCH | `/api/users/{id}` | Actualizar usuario / rol / estado | `users.update` |
 | DELETE | `/api/users/{id}` | Desactivar usuario (borrado lógico) | `users.delete` |
+| GET | `/api/categories` | Listar categorías | `categories.read` |
+| GET | `/api/categories/{id}` | Obtener categoría | `categories.read` |
+| POST | `/api/categories` | Crear categoría | `categories.create` |
+| PATCH | `/api/categories/{id}` | Actualizar categoría / estado | `categories.update` |
+| DELETE | `/api/categories/{id}` | Desactivar categoría (lógico; bloqueada si tiene productos) | `categories.delete` |
+| GET | `/api/products` | Listar productos (búsqueda, filtros, paginación) | `products.read` |
+| GET | `/api/products/{id}` | Obtener producto | `products.read` |
+| GET | `/api/products/barcode/{barcode}` | Consulta por código de barras (solo activos) | `products.read` |
+| POST | `/api/products` | Crear producto | `products.create` |
+| PATCH | `/api/products/{id}` | Actualizar producto | `products.update` |
+| DELETE | `/api/products/{id}` | Desactivar producto (borrado lógico) | `products.delete` |
+| GET | `/api/inventory/movements` | Historial de movimientos (filtros + paginación) | `inventory.read` |
+| GET | `/api/inventory/movements/{id}` | Detalle de movimiento | `inventory.read` |
+| GET | `/api/inventory/low-stock` | Productos con stock ≤ mínimo (activos) | `inventory.read` |
+| POST | `/api/inventory/entries` | Entrada de stock (+) | `inventory.create` |
+| POST | `/api/inventory/exits` | Salida de stock (−; valida disponibilidad) | `inventory.create` |
+| POST | `/api/inventory/returns` | Devolución (+) | `inventory.create` |
+| POST | `/api/inventory/adjustments` | Ajuste a stock objetivo (motivo obligatorio) | `inventory.update` |
 | GET | `/api/docs` | Documentación Swagger (dev) | — |
 
 ## Variables de Entorno

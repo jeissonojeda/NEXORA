@@ -194,6 +194,45 @@ El frontend estará disponible en: http://localhost:5173
 | GET | `/api/auth/me` | Usuario autenticado actual | JWT válido |
 | GET/POST | `/api/users` | Listar / crear usuarios | `users.read` / `users.create` |
 | GET/PATCH/DELETE | `/api/users/{id}` | Ver / actualizar / desactivar usuario | `users.*` |
+| GET/POST | `/api/categories` | Listar / crear categorías | `categories.read` / `categories.create` |
+| GET/PATCH/DELETE | `/api/categories/{id}` | Ver / actualizar / desactivar categoría | `categories.*` |
+| GET | `/api/products?q=&category_id=&is_active=&low_stock=` | Listar productos (filtros + `{items,total}`) | `products.read` |
+| GET | `/api/products/barcode/{barcode}` | Consulta por código de barras (activos) | `products.read` |
+| POST/PATCH/DELETE | `/api/products[/{id}]` | Crear / actualizar / desactivar producto | `products.*` |
+| GET | `/api/inventory/movements?product_id=&movement_type=&created_by=&date_from=&date_to=` | Historial de movimientos | `inventory.read` |
+| GET | `/api/inventory/low-stock` | Productos activos con stock ≤ mínimo | `inventory.read` |
+| POST | `/api/inventory/entries` · `/exits` · `/returns` | Entradas, salidas y devoluciones | `inventory.create` |
+| POST | `/api/inventory/adjustments` | Ajuste a stock objetivo (motivo obligatorio) | `inventory.update` |
+
+## Productos e Inventario (Fase 3)
+
+### Reglas de negocio implementadas
+
+- **Stock:** cada movimiento (entrada/salida/devolución/ajuste) actualiza el stock
+  del producto en la misma transacción, con bloqueo de fila
+  (`SELECT ... FOR UPDATE`) y registro de `previous_stock`/`new_stock`.
+- **Salidas:** rechazadas con 409 `INSUFFICIENT_STOCK` si no hay disponibilidad.
+- **Ajustes:** reciben `new_stock` absoluto; el servicio calcula el delta y
+  rechaza ajustes sin cambio real. Motivo obligatorio.
+- **Inmutabilidad:** los movimientos no se editan ni eliminan (no hay endpoints).
+- **Borrado lógico:** productos/categorías se desactivan (`is_active=False`);
+  una categoría con productos activos no puede desactivarse (409).
+- **Barcode:** único pero opcional; vacío → NULL; la búsqueda ignora inactivos.
+
+### Dinero
+
+Precios usan `Decimal`/`Numeric(12,2)` y llegan al frontend como **string**
+(`"18.00"`). En TypeScript los campos monetarios son `string`; formatear con
+`formatCurrency()` (`src/utils/format.ts`).
+
+### Frontend
+
+- Rutas: `/login`, `/categorias`, `/productos`, `/inventario`.
+- `AuthContext` restaura la sesión desde el token en localStorage al cargar.
+- La UI oculta acciones según rol: ADMIN e INVENTORY_MANAGER pueden editar;
+  CASHIER ve todo en modo lectura.
+- Inventario tiene pestañas: Existencias (con botones de operación),
+  Movimientos (historial con filtros) y Stock bajo (alertas).
 
 ## Tests
 
@@ -329,8 +368,20 @@ Desviaciones menores respecto a `docs/ARCHITECTURE.md`, documentadas según las 
 | Driver PostgreSQL | psycopg2 | psycopg3 (`postgresql+psycopg://`) | Driver moderno mantenido por psycopg.org, API async futura |
 | React | React 18 | React 19 | Versión estable actual al crear el proyecto |
 | Tailwind CSS | tailwind.config.js + postcss.config.js | Tailwind v4 vía plugin `@tailwindcss/vite` (sin configs) | Tailwind v4 elimina archivos de configuración |
-| Router frontend | React Router v6 | No instalado aún; `src/routes/` tiene constantes de rutas | Se instalará al implementar navegación entre páginas |
+| Router frontend | React Router v6 | React Router v6.30 instalado (Fase 3) | Navegación real entre módulos con rutas protegidas |
 | DB en tests | PostgreSQL | SQLite (archivo temporal) para pytest | Tests rápidos sin depender de PG |
+
+### Decisiones técnicas (Fase 3)
+
+| Tema | Decisión | Motivo |
+|------|----------|--------|
+| Dinero | `Decimal` + `Numeric(12,2)`; JSON como string | Precisión exacta; evita bugs de float en JS |
+| Concurrencia de stock | `SELECT ... FOR UPDATE` + CHECK `stock >= 0` | Evita condiciones de carrera; el CHECK es red de seguridad a nivel BD |
+| Ajustes de inventario | `new_stock` absoluto + motivo obligatorio; delta calculado en servicio | Semántica clara de conteo físico |
+| Movimientos | Inmutables (append-only) con stock previo/nuevo y usuario | Trazabilidad y auditoría confiables |
+| Borrado | Lógico (`is_active=False`) para productos/categorías | Conserva integridad referencial e historial |
+| Proveedores | Modelo mínimo creado, sin endpoints/UI aún | La FK de products lo requiere; CRUD completo va en Fase 4 |
+| Listados | Productos/movimientos retornan `{items,total}` | Paginación precisa en frontend |
 
 ## Convenciones
 
