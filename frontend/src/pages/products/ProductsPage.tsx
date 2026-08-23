@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { extractErrorMessage, useAsync } from '../../hooks/useAsync';
 import { listCategories } from '../../services/categories';
+import { listSuppliers } from '../../services/suppliers';
 import {
   createProduct,
   deactivateProduct,
@@ -30,10 +31,16 @@ export default function ProductsPage() {
     false;
 
   const categoriesState = useAsync(() => listCategories(), []);
+  const suppliersState = useAsync(
+    () =>
+      listSuppliers({ isActive: true, orderBy: 'name', order: 'asc', limit: 100 }),
+    [],
+  );
 
   const [searchInput, setSearchInput] = useState('');
   const [query, setQuery] = useState('');
   const [categoryId, setCategoryId] = useState('');
+  const [supplierId, setSupplierId] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [lowStockOnly, setLowStockOnly] = useState(false);
   const [page, setPage] = useState(1);
@@ -43,13 +50,14 @@ export default function ProductsPage() {
       listProducts({
         q: query || null,
         categoryId: categoryId || null,
+        supplierId: supplierId || null,
         isActive:
           statusFilter === 'all' ? null : statusFilter === 'active',
         lowStock: lowStockOnly,
         skip: (page - 1) * PAGE_SIZE,
         limit: PAGE_SIZE,
       }),
-    [query, categoryId, statusFilter, lowStockOnly, page],
+    [query, categoryId, supplierId, statusFilter, lowStockOnly, page],
   );
 
   // Búsqueda con debounce
@@ -60,6 +68,11 @@ export default function ProductsPage() {
 
   function changeCategory(value: string) {
     setCategoryId(value);
+    setPage(1);
+  }
+
+  function changeSupplier(value: string) {
+    setSupplierId(value);
     setPage(1);
   }
 
@@ -161,8 +174,8 @@ export default function ProductsPage() {
       </div>
 
       {/* Filtros */}
-      <div className="grid grid-cols-1 gap-3 rounded-lg bg-white p-4 shadow sm:grid-cols-2 lg:grid-cols-4">
-        <div>
+      <div className="grid grid-cols-1 gap-3 rounded-lg bg-white p-4 shadow sm:grid-cols-2 lg:grid-cols-5">
+        <div className="lg:col-span-2">
           <label htmlFor="filter-search" className="block text-xs font-medium text-gray-500">
             Buscar (nombre o código)
           </label>
@@ -188,6 +201,24 @@ export default function ProductsPage() {
             {categoriesState.data?.map((category) => (
               <option key={category.id} value={category.id}>
                 {category.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label htmlFor="filter-supplier" className="block text-xs font-medium text-gray-500">
+            Proveedor
+          </label>
+          <select
+            id="filter-supplier"
+            value={supplierId}
+            onChange={(event) => changeSupplier(event.target.value)}
+            className={`mt-1 ${inputClass}`}
+          >
+            <option value="">Todos</option>
+            {suppliersState.data?.items.map((supplier) => (
+              <option key={supplier.id} value={supplier.id}>
+                {supplier.name}
               </option>
             ))}
           </select>
@@ -261,7 +292,11 @@ export default function ProductsPage() {
 
       <ErrorAlert
         message={
-          productsState.error ?? barcodeError ?? categoriesState.error ?? null
+          productsState.error ??
+          barcodeError ??
+          categoriesState.error ??
+          suppliersState.error ??
+          null
         }
         onRetry={
           productsState.loading ? undefined : () => void productsState.reload()
@@ -284,6 +319,9 @@ export default function ProductsPage() {
                   </th>
                   <th className="hidden px-4 py-3 text-left font-semibold text-gray-600 sm:table-cell">
                     Categoría
+                  </th>
+                  <th className="hidden px-4 py-3 text-left font-semibold text-gray-600 md:table-cell">
+                    Proveedor
                   </th>
                   <th className="px-4 py-3 text-right font-semibold text-gray-600">Precio venta</th>
                   <th className="px-4 py-3 text-right font-semibold text-gray-600">Stock</th>
@@ -312,6 +350,9 @@ export default function ProductsPage() {
                       </td>
                       <td className="hidden px-4 py-3 text-gray-600 sm:table-cell">
                         {product.category.name}
+                      </td>
+                      <td className="hidden max-w-[160px] truncate px-4 py-3 text-gray-600 md:table-cell">
+                        {product.supplier?.name ?? '—'}
                       </td>
                       <td className="px-4 py-3 text-right text-gray-800">
                         ₡{Number(product.sale_price).toLocaleString('es-CR', { minimumFractionDigits: 2 })}
@@ -393,12 +434,13 @@ export default function ProductsPage() {
                   purchase_price: String(Number(editing.purchase_price)),
                   sale_price: String(Number(editing.sale_price)),
                   category_id: editing.category.id,
-                  supplier_id: '',
+                  supplier_id: editing.supplier?.id ?? '',
                   minimum_stock: String(editing.minimum_stock),
                 }
               : undefined
           }
           categories={categoriesState.data ?? []}
+          suppliers={suppliersState.data?.items ?? []}
           isEdit={editing !== null}
           busy={busy}
           error={formError}

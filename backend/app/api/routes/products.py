@@ -24,6 +24,7 @@ def list_products(
     db: Annotated[Session, Depends(get_db)],
     q: Annotated[str | None, Query(max_length=100)] = None,
     category_id: UUID | None = None,
+    supplier_id: UUID | None = None,
     is_active: bool | None = None,
     low_stock: bool = False,
     skip: Annotated[int, Query(ge=0)] = 0,
@@ -32,6 +33,7 @@ def list_products(
     items, total = ProductService(db).search_products(
         q=q,
         category_id=category_id,
+        supplier_id=supplier_id,
         is_active=is_active,
         low_stock=low_stock,
         skip=skip,

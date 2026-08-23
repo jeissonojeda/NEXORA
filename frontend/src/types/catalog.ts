@@ -12,6 +12,36 @@ export interface ApiSupplierBrief {
   name: string;
 }
 
+export interface ApiSupplier {
+  id: string;
+  name: string;
+  identification: string | null;
+  contact_name: string | null;
+  phone: string | null;
+  email: string | null;
+  address: string | null;
+  city: string | null;
+  notes: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ApiSupplierDetail extends ApiSupplier {
+  products_count: number;
+}
+
+export interface SupplierFormValues {
+  name: string;
+  identification: string;
+  contact_name: string;
+  phone: string;
+  email: string;
+  address: string;
+  city: string;
+  notes: string;
+}
+
 export interface ApiProduct {
   id: string;
   name: string;
@@ -69,6 +99,15 @@ export interface ProductFormValues {
   category_id: string;
   supplier_id: string;
   minimum_stock: string;
+}
+
+export interface SupplierListFilters {
+  q?: string | null;
+  isActive?: boolean | null;
+  orderBy?: 'name' | 'created_at' | 'updated_at';
+  order?: 'asc' | 'desc';
+  skip?: number;
+  limit?: number;
 }
 
 export interface CategoryFormValues {

@@ -2,6 +2,7 @@ export const ROUTES = {
   HOME: '/',
   LOGIN: '/login',
   CATEGORIES: '/categorias',
+  SUPPLIERS: '/proveedores',
   PRODUCTS: '/productos',
   INVENTORY: '/inventario',
 } as const;

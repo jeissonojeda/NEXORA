@@ -4,7 +4,7 @@ Sistema web profesional para la gestión integral de un supermercado, con módul
 
 ## Estado
 
-**Fase 1 — Fundamentos**, **Fase 2 — Autenticación, Usuarios y Roles** y **Fase 3 — Productos e Inventario** completadas.
+**Fase 1 — Fundamentos**, **Fase 2 — Autenticación, Usuarios y Roles**, **Fase 3 — Productos e Inventario** y **Fase 4 — Proveedores** completadas.
 
 ## Arquitectura
 
@@ -85,7 +85,7 @@ Nunca se usan credenciales fijas en el código; la contraseña se pide de forma 
 - Login vía `POST /api/auth/login` (formato OAuth2 form-urlencoded) → JWT bearer.
 - El JWT contiene únicamente `sub` (id del usuario) y `exp`.
 - Autorización RBAC en backend con permisos granulares (`users.read`, `sales.create`, ...).
-- Roles: `ADMIN` (todo), `CASHIER` (ventas, clientes, caja), `INVENTORY_MANAGER` (productos, inventario, proveedores, reportes).
+- Roles: `ADMIN` (todo), `CASHIER` (ventas, clientes, caja, lectura de catálogo/proveedores), `INVENTORY_MANAGER` (productos, inventario, proveedores, reportes).
 
 ## Endpoints Disponibles
 
@@ -105,12 +105,18 @@ Nunca se usan credenciales fijas en el código; la contraseña se pide de forma 
 | POST | `/api/categories` | Crear categoría | `categories.create` |
 | PATCH | `/api/categories/{id}` | Actualizar categoría / estado | `categories.update` |
 | DELETE | `/api/categories/{id}` | Desactivar categoría (lógico; bloqueada si tiene productos) | `categories.delete` |
-| GET | `/api/products` | Listar productos (búsqueda, filtros, paginación) | `products.read` |
+| GET | `/api/products` | Listar productos (búsqueda, filtros incl. `supplier_id`, paginación) | `products.read` |
 | GET | `/api/products/{id}` | Obtener producto | `products.read` |
 | GET | `/api/products/barcode/{barcode}` | Consulta por código de barras (solo activos) | `products.read` |
 | POST | `/api/products` | Crear producto | `products.create` |
 | PATCH | `/api/products/{id}` | Actualizar producto | `products.update` |
 | DELETE | `/api/products/{id}` | Desactivar producto (borrado lógico) | `products.delete` |
+| GET | `/api/suppliers` | Listar proveedores (búsqueda, filtros, orden, `{items,total}`) | `suppliers.read` |
+| GET | `/api/suppliers/{id}` | Detalle de proveedor (+ cantidad de productos) | `suppliers.read` |
+| GET | `/api/suppliers/{id}/products` | Productos del proveedor (paginado) | `suppliers.read` |
+| POST | `/api/suppliers` | Crear proveedor | `suppliers.create` |
+| PATCH | `/api/suppliers/{id}` | Actualizar proveedor / estado | `suppliers.update` |
+| DELETE | `/api/suppliers/{id}` | Desactivar proveedor (borrado lógico, nunca físico) | `suppliers.delete` |
 | GET | `/api/inventory/movements` | Historial de movimientos (filtros + paginación) | `inventory.read` |
 | GET | `/api/inventory/movements/{id}` | Detalle de movimiento | `inventory.read` |
 | GET | `/api/inventory/low-stock` | Productos con stock ≤ mínimo (activos) | `inventory.read` |

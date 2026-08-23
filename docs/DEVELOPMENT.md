@@ -196,9 +196,13 @@ El frontend estará disponible en: http://localhost:5173
 | GET/PATCH/DELETE | `/api/users/{id}` | Ver / actualizar / desactivar usuario | `users.*` |
 | GET/POST | `/api/categories` | Listar / crear categorías | `categories.read` / `categories.create` |
 | GET/PATCH/DELETE | `/api/categories/{id}` | Ver / actualizar / desactivar categoría | `categories.*` |
-| GET | `/api/products?q=&category_id=&is_active=&low_stock=` | Listar productos (filtros + `{items,total}`) | `products.read` |
+| GET | `/api/products?q=&category_id=&supplier_id=&is_active=&low_stock=` | Listar productos (filtros + `{items,total}`) | `products.read` |
 | GET | `/api/products/barcode/{barcode}` | Consulta por código de barras (activos) | `products.read` |
 | POST/PATCH/DELETE | `/api/products[/{id}]` | Crear / actualizar / desactivar producto | `products.*` |
+| GET | `/api/suppliers?q=&is_active=&order_by=&order=` | Listar proveedores (`{items,total}` con `products_count`) | `suppliers.read` |
+| GET | `/api/suppliers/{id}` | Detalle de proveedor (+ cantidad de productos) | `suppliers.read` |
+| GET | `/api/suppliers/{id}/products?q=&is_active=` | Productos del proveedor (paginado) | `suppliers.read` |
+| POST/PATCH/DELETE | `/api/suppliers[/{id}]` | Crear / actualizar / desactivar proveedor | `suppliers.*` |
 | GET | `/api/inventory/movements?product_id=&movement_type=&created_by=&date_from=&date_to=` | Historial de movimientos | `inventory.read` |
 | GET | `/api/inventory/low-stock` | Productos activos con stock ≤ mínimo | `inventory.read` |
 | POST | `/api/inventory/entries` · `/exits` · `/returns` | Entradas, salidas y devoluciones | `inventory.create` |
@@ -227,12 +231,36 @@ Precios usan `Decimal`/`Numeric(12,2)` y llegan al frontend como **string**
 
 ### Frontend
 
-- Rutas: `/login`, `/categorias`, `/productos`, `/inventario`.
+- Rutas: `/login`, `/categorias`, `/proveedores`, `/productos`, `/inventario`.
 - `AuthContext` restaura la sesión desde el token en localStorage al cargar.
 - La UI oculta acciones según rol: ADMIN e INVENTORY_MANAGER pueden editar;
   CASHIER ve todo en modo lectura.
 - Inventario tiene pestañas: Existencias (con botones de operación),
   Movimientos (historial con filtros) y Stock bajo (alertas).
+
+## Proveedores (Fase 4)
+
+### Reglas de negocio implementadas
+
+- **Borrado lógico:** `DELETE` solo desactiva (`is_active=False`); nunca hay
+  borrado físico, tenga o no productos asociados.
+- **Identificación:** opcional pero única; vacía → NULL. Duplicada → 409.
+- **Nombre único:** duplicado → 409 `SUPPLIER_NAME_ALREADY_EXISTS`.
+- **Email opcional** validado con `EmailStr` (inválido → 422).
+- **Teléfono como texto:** admite prefijos, espacios, guiones, código país.
+- **Relación con productos:** un producto activo no admite proveedor inexistente
+  (400) ni inactivo (409); reactivar un producto cuyo proveedor quedó inactivo
+  se rechaza hasta cambiar/quitar el proveedor. Los productos ya asociados
+  permanecen intactos al desactivar el proveedor.
+- **Listado:** búsqueda por nombre/identificación/email/teléfono (`q`), filtro
+  por estado, ordenamiento seguro (`order_by` ∈ name|created_at|updated_at) y
+  paginación `{items,total}`; cada ítem trae `products_count` (sin N+1).
+- **Productos del proveedor:** `GET /api/suppliers/{id}/products` paginado,
+  con búsqueda y filtro de estado; solo devuelve productos de ese proveedor.
+
+Después de actualizar desde una versión anterior ejecutar
+`python -m app.cli seed-rbac` para crear el permiso nuevo `suppliers.delete`
+y asignarlo a los roles (seed idempotente).
 
 ## Tests
 
@@ -382,6 +410,20 @@ Desviaciones menores respecto a `docs/ARCHITECTURE.md`, documentadas según las 
 | Borrado | Lógico (`is_active=False`) para productos/categorías | Conserva integridad referencial e historial |
 | Proveedores | Modelo mínimo creado, sin endpoints/UI aún | La FK de products lo requiere; CRUD completo va en Fase 4 |
 | Listados | Productos/movimientos retornan `{items,total}` | Paginación precisa en frontend |
+
+### Decisiones técnicas (Fase 4)
+
+| Tema | Decisión | Motivo |
+|------|----------|--------|
+| Identificación | `String(50)` opcional con índice único (NULL múltiples permitidos) | Sin formato de país impuesto; la unicidad solo aplica cuando existe |
+| Nombre | Se mantiene `UNIQUE` heredado de `0002_catalog` | Consistencia con categorías; evitar migración destructiva innecesaria |
+| Email | Pydantic `EmailStr` (`email-validator`, ya en requirements) | Validación robusta sin dependencias nuevas |
+| Teléfono | Texto libre `String(50)`, nunca numérico | Admite prefijos/espacios/guiones/código país |
+| Borrado | Solo lógico, incluso con productos asociados | Preserva integridad referencial e historial; FK RESTRICT como red |
+| products_count | LEFT JOIN agregado en una consulta | Evita N+1 en el listado |
+| Ordenamiento | Whitelist `order_by`/`order` en repositorio | Sin SQL dinámico inseguro; inválido → 422 |
+| Ruta frontend | `/proveedores` (spec sugería `/suppliers`) | Consistencia con rutas existentes en español |
+| Selector proveedor | Carga activos (limit 100) + filtro client-side | No carga todos los proveedores innecesariamente |
 
 ## Convenciones
 

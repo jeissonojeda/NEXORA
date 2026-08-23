@@ -839,9 +839,20 @@ VITE_API_URL=http://localhost:8000/api
 - [x] Migración `0002_catalog` (suppliers, categories, products, inventory_movements)
 - [x] Frontend: páginas categorías/productos/inventario + login + AuthContext
 
-### Fase 4 — Proveedores (siguiente)
-- [ ] CRUD completo de proveedores (el modelo ya existe en `0002_catalog`)
-- [ ] Asignación proveedor-producto en la UI de productos
+### Fase 4 — Proveedores ✅
+- [x] CRUD completo de proveedores (`/api/suppliers`) con borrado lógico
+- [x] Campos de detalle: identificación (única opcional), dirección, ciudad, notas
+- [x] Listado con búsqueda (nombre/identificación/email/teléfono), filtro por estado,
+      ordenamiento seguro (whitelist) y paginación `{items,total}` con conteo de
+      productos por proveedor en una sola consulta (sin N+1)
+- [x] `GET /api/suppliers/{id}` con estadística `products_count`
+- [x] `GET /api/suppliers/{id}/products` paginado y aislado por proveedor
+- [x] Reglas proveedor-producto: producto activo no admite proveedor inexistente (400)
+      ni inactivo (409); reactivar producto con proveedor inactivo se rechaza
+- [x] RBAC: `suppliers.read/create/update/delete`; CASHIER solo lectura
+- [x] Migración `0003_supplier_details` (reversible, sin pérdida de datos)
+- [x] Frontend: página `/proveedores` (listado, búsqueda, filtros, detalle modal con
+      productos paginados, formulario completo) + selector/filtro de proveedor en productos
 
 ### Fase 5 — Ventas y Facturación
 - [ ] Flujo de venta completo (carrito, totales, confirmación)
@@ -902,3 +913,39 @@ Decisiones vigentes que extienden/aclaran este documento:
   `products.read/create/update/delete`, `inventory.read/create/update`.
   CASHIER tiene lectura de catálogo/inventario (necesario para ventas futuras);
   INVENTORY_MANAGER gestiona todo el dominio; ADMIN todo.
+
+## 21.2 Notas de implementación de proveedores (Fase 4)
+
+Decisiones vigentes que extienden/aclaran este documento:
+
+- **Identificación:** opcional pero única cuando existe (`String(50)`, índice
+  único; múltiples NULL permitidos). Sin formato de país impuesto; se normalizan
+  cadenas vacías a NULL. Duplicada → 409 `SUPPLIER_IDENTIFICATION_ALREADY_EXISTS`.
+- **Nombre:** se conserva la restricción de unicidad heredada de `0002_catalog`
+  (mismo criterio que categorías). Duplicado → 409 `SUPPLIER_NAME_ALREADY_EXISTS`.
+- **Email:** validado con Pydantic `EmailStr` (dependencia `email-validator`, ya
+  presente en requirements). Opcional; inválido → 422.
+- **Teléfono:** texto libre (`String(50)`), nunca numérico; admite prefijos,
+  espacios, guiones y códigos internacionales.
+- **Borrado lógico estricto:** `DELETE /api/suppliers/{id}` solo marca
+  `is_active=False`. Nunca hay borrado físico, tenga o no productos asociados;
+  la FK `products.supplier_id` usa `ondelete=RESTRICT` como red de seguridad.
+- **Regla proveedor-producto:** un producto activo no puede quedar asociado a un
+  proveedor inexistente (400 `INVALID_SUPPLIER`) ni inactivo (409
+  `SUPPLIER_INACTIVE`). Reactivar un producto cuyo proveedor quedó inactivo se
+  rechaza hasta cambiar/quitar el proveedor. Los productos inactivos pueden
+  conservar proveedores inactivos (integridad histórica).
+- **Listado sin N+1:** el conteo de productos por proveedor del listado se
+  resuelve con un LEFT JOIN agregado en una sola consulta.
+- **Ordenamiento seguro:** `order_by` limitado por whitelist a
+  `name|created_at|updated_at`; `order` a `asc|desc`. Fuera del dominio → 422.
+- **Paginación:** proveedores retorna `{items,total}` como productos/movimientos;
+  cada ítem incluye `products_count`.
+- **Permisos nuevos:** `suppliers.read/create/update/delete`. CASHIER obtiene
+  `suppliers.read` (consulta para ventas); INVENTORY_MANAGER CRUD completo;
+  ADMIN todo. Ejecutar `python -m app.cli seed-rbac` para sincronizar una base
+  existente (seed idempotente agrega permisos/links faltantes).
+- **Frontend:** ruta `/proveedores` (convención española del proyecto, la spec
+  sugería `/suppliers`); acciones de escritura ocultas sin rol ADMIN/
+  INVENTORY_MANAGER; el selector de proveedor en productos carga solo activos
+  (límite 100) con filtro por texto client-side.

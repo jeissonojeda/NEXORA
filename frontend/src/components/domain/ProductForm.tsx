@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { InlineError } from '../ui/ErrorAlert';
-import type { ApiCategory, ProductFormValues } from '../../types/catalog';
+import type { ApiCategory, ApiSupplierBrief, ProductFormValues } from '../../types/catalog';
 
 interface ProductFormProps {
   initial?: Partial<ProductFormValues>;
   categories: ApiCategory[];
+  suppliers?: ApiSupplierBrief[];
   isEdit: boolean;
   busy: boolean;
   error: string | null;
@@ -18,6 +19,7 @@ const inputClass =
 export default function ProductForm({
   initial,
   categories,
+  suppliers = [],
   isEdit,
   busy,
   error,
@@ -36,6 +38,13 @@ export default function ProductForm({
     stock: '0',
   });
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [supplierQuery, setSupplierQuery] = useState('');
+
+  const filteredSuppliers = supplierQuery.trim()
+    ? suppliers.filter((supplier) =>
+        supplier.name.toLowerCase().includes(supplierQuery.trim().toLowerCase()),
+      )
+    : suppliers;
 
   function set<K extends keyof (ProductFormValues & { stock: string })>(
     field: K,
@@ -128,6 +137,34 @@ export default function ProductForm({
             ))}
           </select>
           <InlineError message={fieldErrors.category_id} />
+        </div>
+
+        <div>
+          <label htmlFor="product-supplier" className="block text-sm font-medium text-gray-700">
+            Proveedor
+          </label>
+          <input
+            id="supplier-search"
+            value={supplierQuery}
+            onChange={(event) => setSupplierQuery(event.target.value)}
+            className={inputClass}
+            placeholder="Filtrar proveedores…"
+            aria-label="Buscar proveedor"
+          />
+          <select
+            aria-label="Seleccionar proveedor"
+            value={values.supplier_id}
+            onChange={(event) => set('supplier_id', event.target.value)}
+            className={inputClass}
+          >
+            <option value="">Sin proveedor</option>
+            {filteredSuppliers.map((supplier) => (
+              <option key={supplier.id} value={supplier.id}>
+                {supplier.name}
+              </option>
+            ))}
+          </select>
+          <InlineError message={fieldErrors.supplier_id} />
         </div>
 
         <div>

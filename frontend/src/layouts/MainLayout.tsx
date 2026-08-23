@@ -5,6 +5,7 @@ import { ROUTES } from '../routes';
 const NAV_ITEMS = [
   { to: ROUTES.HOME, label: 'Inicio' },
   { to: ROUTES.CATEGORIES, label: 'Categorías' },
+  { to: ROUTES.SUPPLIERS, label: 'Proveedores' },
   { to: ROUTES.PRODUCTS, label: 'Productos' },
   { to: ROUTES.INVENTORY, label: 'Inventario' },
 ];
@@ -64,7 +65,7 @@ function MainLayout() {
         <Outlet />
       </main>
       <footer className="bg-white py-4 text-center text-sm text-gray-500">
-        Fase 3 — Productos e Inventario
+        Fase 4 — Proveedores
       </footer>
     </div>
   );

@@ -2,7 +2,7 @@
 
 ## Status
 
-Fase actual: Fase 3 (Productos e Inventario) completada. Siguiente: Fase 4 (Proveedores).
+Fase actual: Fase 4 (Proveedores) completada. Siguiente: Fase 5 (Ventas y Facturación).
 
 ## Project intent
 
@@ -29,8 +29,8 @@ backend/app/
 
 frontend/src/
   components/   → ui/ (genéricos) + domain/ (específicos)
-  pages/        → una carpeta por módulo (auth, categories, products, inventory)
-  services/     → Axios calls, una por dominio (api.ts + auth.ts + categories/products/inventory)
+  pages/        → una carpeta por módulo (auth, categories, suppliers, products, inventory)
+  services/     → Axios calls, una por dominio (api.ts + auth.ts + categories/suppliers/products/inventory)
   contexts/     → AuthContext (sesión JWT restaurada desde localStorage)
   hooks/        → custom hooks (useAsync, useHealth)
   types/        → interfaces TypeScript (+ auth.ts, catalog.ts)

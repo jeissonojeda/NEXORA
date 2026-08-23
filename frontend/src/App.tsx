@@ -6,6 +6,7 @@ import HomePage from './pages/home/HomePage';
 import LoginPage from './pages/auth/LoginPage';
 import CategoriesPage from './pages/categories/CategoriesPage';
 import ProductsPage from './pages/products/ProductsPage';
+import SuppliersPage from './pages/suppliers/SuppliersPage';
 import InventoryPage from './pages/inventory/InventoryPage';
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -39,6 +40,7 @@ function App() {
       >
         <Route index element={<HomePage />} />
         <Route path="categorias" element={<CategoriesPage />} />
+        <Route path="proveedores" element={<SuppliersPage />} />
         <Route path="productos" element={<ProductsPage />} />
         <Route path="inventario" element={<InventoryPage />} />
       </Route>

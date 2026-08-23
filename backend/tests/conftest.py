@@ -112,6 +112,42 @@ def auth_headers(user: User) -> dict[str, str]:
 
 _category_counter = {"n": 0}
 _product_counter = {"n": 0}
+_supplier_counter = {"n": 0}
+
+
+@pytest.fixture(scope="function")
+def make_supplier(db_session: Session):
+    from app.models.supplier import Supplier
+
+    def _factory(
+        name: str | None = None,
+        identification: str | None = None,
+        contact_name: str | None = None,
+        phone: str | None = None,
+        email: str | None = None,
+        address: str | None = None,
+        city: str | None = None,
+        notes: str | None = None,
+        is_active: bool = True,
+    ) -> Supplier:
+        _supplier_counter["n"] += 1
+        supplier = Supplier(
+            name=name or f"Proveedor {_supplier_counter['n']}",
+            identification=identification or f"ID-{_supplier_counter['n']:08d}",
+            contact_name=contact_name,
+            phone=phone,
+            email=email,
+            address=address,
+            city=city,
+            notes=notes,
+            is_active=is_active,
+        )
+        db_session.add(supplier)
+        db_session.commit()
+        db_session.refresh(supplier)
+        return supplier
+
+    return _factory
 
 
 @pytest.fixture(scope="function")

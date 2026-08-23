@@ -48,13 +48,21 @@ class ProductService:
             )
         return category
 
-    def _validate_supplier(self, supplier_id: UUID) -> Supplier:
+    def _validate_supplier(
+        self, supplier_id: UUID, require_active: bool = True
+    ) -> Supplier:
         supplier = self.db.get(Supplier, supplier_id)
         if supplier is None:
             raise AppError(
                 status_code=400,
                 error_code="INVALID_SUPPLIER",
                 message="El proveedor especificado no existe",
+            )
+        if require_active and not supplier.is_active:
+            raise AppError(
+                status_code=409,
+                error_code="SUPPLIER_INACTIVE",
+                message="El proveedor está inactivo; no puede asignarse a un producto activo",
             )
         return supplier
 
@@ -136,7 +144,19 @@ class ProductService:
 
         new_supplier_id = fields.get("supplier_id")
         if new_supplier_id is not None:
-            self._validate_supplier(new_supplier_id)
+            self._validate_supplier(new_supplier_id, require_active=False)
+
+        # Estado combinado producto↔proveedor: un producto activo no puede
+        # quedar asociado a un proveedor inactivo ni a uno inexistente.
+        if "supplier_id" in fields or "is_active" in fields:
+            effective_supplier_id = (
+                fields["supplier_id"] if "supplier_id" in fields else product.supplier_id
+            )
+            effective_is_active = (
+                fields["is_active"] if "is_active" in fields else product.is_active
+            )
+            if effective_is_active and effective_supplier_id is not None:
+                self._validate_supplier(effective_supplier_id)
 
         for field in (
             "name",

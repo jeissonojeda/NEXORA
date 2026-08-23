@@ -22,6 +22,7 @@ class ProductRepository(BaseRepository[Product]):
         self,
         q: str | None = None,
         category_id: UUID | None = None,
+        supplier_id: UUID | None = None,
         is_active: bool | None = None,
         low_stock: bool = False,
         skip: int = 0,
@@ -39,6 +40,8 @@ class ProductRepository(BaseRepository[Product]):
             )
         if category_id is not None:
             conditions.append(Product.category_id == category_id)
+        if supplier_id is not None:
+            conditions.append(Product.supplier_id == supplier_id)
         if is_active is not None:
             conditions.append(Product.is_active == is_active)
         if low_stock:

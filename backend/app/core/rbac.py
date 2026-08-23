@@ -41,6 +41,7 @@ class Permissions:
     SUPPLIERS_READ = "suppliers.read"
     SUPPLIERS_CREATE = "suppliers.create"
     SUPPLIERS_UPDATE = "suppliers.update"
+    SUPPLIERS_DELETE = "suppliers.delete"
 
     CASH_READ = "cash.read"
     CASH_OPEN = "cash.open"
@@ -78,6 +79,7 @@ ALL_PERMISSIONS: dict[str, str] = {
     Permissions.SUPPLIERS_READ: "Consultar proveedores",
     Permissions.SUPPLIERS_CREATE: "Crear proveedores",
     Permissions.SUPPLIERS_UPDATE: "Actualizar proveedores",
+    Permissions.SUPPLIERS_DELETE: "Eliminar proveedores",
     Permissions.CASH_READ: "Consultar caja",
     Permissions.CASH_OPEN: "Abrir caja",
     Permissions.CASH_CLOSE: "Cerrar caja",
@@ -108,6 +110,7 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         Permissions.PRODUCTS_READ,
         Permissions.CATEGORIES_READ,
         Permissions.INVENTORY_READ,
+        Permissions.SUPPLIERS_READ,
     ),
     Roles.INVENTORY_MANAGER: _codes(
         Permissions.PRODUCTS_READ,
@@ -124,6 +127,7 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         Permissions.SUPPLIERS_READ,
         Permissions.SUPPLIERS_CREATE,
         Permissions.SUPPLIERS_UPDATE,
+        Permissions.SUPPLIERS_DELETE,
         Permissions.REPORTS_READ,
         Permissions.REPORTS_EXPORT,
     ),

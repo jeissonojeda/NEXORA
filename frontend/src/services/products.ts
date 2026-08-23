@@ -4,6 +4,7 @@ import type { ApiProduct, Paginated, ProductFormValues } from '../types/catalog'
 export interface ProductFilters {
   q?: string | null;
   categoryId?: string | null;
+  supplierId?: string | null;
   isActive?: boolean | null;
   lowStock?: boolean;
   skip?: number;
@@ -22,8 +23,8 @@ function buildBody(values: Partial<ProductFormValues>): Record<string, unknown> 
   if (values.purchase_price) body.purchase_price = Number(values.purchase_price);
   if (values.sale_price) body.sale_price = Number(values.sale_price);
   if (values.category_id) body.category_id = values.category_id || null;
-  if (values.supplier_id !== undefined && values.supplier_id) {
-    body.supplier_id = values.supplier_id;
+  if (values.supplier_id !== undefined) {
+    body.supplier_id = values.supplier_id ? values.supplier_id : null;
   }
   if (values.minimum_stock) body.minimum_stock = Number(values.minimum_stock);
   return body;
@@ -35,6 +36,7 @@ export async function listProducts(
   const params: Record<string, unknown> = {};
   if (filters.q?.trim()) params.q = filters.q.trim();
   if (filters.categoryId) params.category_id = filters.categoryId;
+  if (filters.supplierId) params.supplier_id = filters.supplierId;
   if (filters.isActive !== null && filters.isActive !== undefined) {
     params.is_active = filters.isActive;
   }
