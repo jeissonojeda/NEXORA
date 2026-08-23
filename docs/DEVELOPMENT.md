@@ -207,6 +207,48 @@ El frontend estará disponible en: http://localhost:5173
 | GET | `/api/inventory/low-stock` | Productos activos con stock ≤ mínimo | `inventory.read` |
 | POST | `/api/inventory/entries` · `/exits` · `/returns` | Entradas, salidas y devoluciones | `inventory.create` |
 | POST | `/api/inventory/adjustments` | Ajuste a stock objetivo (motivo obligatorio) | `inventory.update` |
+| GET | `/api/purchases?supplier_id=&status=&date_from=&date_to=&q=` | Listar compras (`{items,total}`) | `purchases.read` |
+| GET | `/api/purchases/{id}` | Detalle de compra con ítems (snapshot) | `purchases.read` |
+| POST | `/api/purchases` | Crear compra DRAFT (ítems opcionales) | `purchases.create` |
+| PATCH/DELETE | `/api/purchases/{id}` | Editar encabezado (DRAFT) / cancelar (lógico) | `purchases.update` / `purchases.cancel` |
+| POST | `/api/purchases/{id}/confirm` | Confirmar: entrada de inventario transaccional e idempotente | `purchases.confirm` |
+| POST/PATCH/DELETE | `/api/purchases/{id}/items[/{item_id}]` | Gestionar ítems (solo DRAFT) | `purchases.update` |
+
+## Compras y Abastecimiento (Fase 5)
+
+### Reglas de negocio implementadas
+
+- **Estados:** `DRAFT` (editable) → `CONFIRMED` (inmutable, generó inventario)
+  o `CANCELLED` (terminal, no confirmable). DELETE = cancelación lógica;
+  nunca borrado físico.
+- **Número de compra:** generado por backend (`COMP-YYYY-NNNNNN`, secuencia
+  anual). En PostgreSQL usa advisory lock para evitar colisiones concurrentes.
+- **Confirmación:** una única transacción — valida compra/proveedor/productos,
+  registra entradas vía `InventoryService.apply_entry` (ENTRY con
+  `reference_type='PURCHASE'` y `reference_id=purchase.id`) y marca CONFIRMED.
+  Cualquier fallo → ROLLBACK total (compra sigue DRAFT, stock intacto, sin
+  movimientos parciales).
+- **Idempotencia:** confirmar dos veces devuelve 409 y no duplica stock ni
+  movimientos; la fila se bloquea con `SELECT ... FOR UPDATE` para que dos
+  usuarios no puedan confirmar simultáneamente.
+- **Dinero:** `Decimal` + `NUMERIC(14,2)` (encabezado) / `NUMERIC(12,2)`
+  (ítems), redondeo ROUND_HALF_UP; descuento > subtotal → 422.
+- **Snapshot:** los ítems conservan cantidad/costos históricos aunque el
+  producto cambie de precio después.
+- **Precios:** confirmar NO toca `Product.sale_price` ni `Product.purchase_price`.
+- **Proveedor/producto:** deben existir y estar activos al crear Y confirmar.
+
+### Frontend
+
+- Rutas `/purchases` (listado con filtros estado/proveedor/fechas) y
+  `/purchases/:id` (detalle editable en DRAFT; solo lectura en otros estados).
+- El botón Confirmar muestra un diálogo explicativo antes de aplicar el cambio;
+  al terminar se recarga el detalle (stock visible en Inventario).
+
+Después de actualizar desde una versión anterior ejecutar
+`python -m app.cli seed-rbac` para crear los permisos nuevos
+`purchases.read/create/update/confirm/cancel` y asignarlos a los roles
+(seed idempotente).
 
 ## Productos e Inventario (Fase 3)
 
@@ -424,6 +466,22 @@ Desviaciones menores respecto a `docs/ARCHITECTURE.md`, documentadas según las 
 | Ordenamiento | Whitelist `order_by`/`order` en repositorio | Sin SQL dinámico inseguro; inválido → 422 |
 | Ruta frontend | `/proveedores` (spec sugería `/suppliers`) | Consistencia con rutas existentes en español |
 | Selector proveedor | Carga activos (limit 100) + filtro client-side | No carga todos los proveedores innecesariamente |
+
+### Decisiones técnicas (Fase 5)
+
+| Tema | Decisión | Motivo |
+|------|----------|--------|
+| Cambio de stock | Solo vía `InventoryService.apply_entry` (sin commit) dentro de la transacción de confirmación | Único punto de mutación de stock; atomicidad garantizada |
+| Idempotencia | Segunda confirmación → 409 `PURCHASE_ALREADY_CONFIRMED` | Explícito y auditable; imposible duplicar entradas |
+| Concurrencia | `SELECT ... FOR UPDATE` sobre la compra + advisory lock para el número | Dos confirmaciones simultáneas no generan movimientos dobles |
+| Número de compra | `COMP-YYYY-NNNNNN`, secuencia por año, UNIQUE en BD + reintento | Legible, generado por backend, sin colisiones |
+| Dinero | `Decimal`/`NUMERIC(14,2)`; JSON string; ROUND_HALF_UP a escala 2 | Sin errores de float ni redondeo inconsistente |
+| Snapshot histórico | Ítems copian cantidad/costos al crear/editar; nunca se recalculan | Las compras pasadas reflejan lo pagado realmente |
+| Precios comerciales | Confirmar no modifica `Product.purchase_price`/`sale_price` | Evita alterar precios silenciosamente; costo histórico vive en el ítem |
+| DELETE | Cancelación lógica (`CANCELLED`) | Trazabilidad contable; nada se borra físicamente |
+| Movimientos | Nuevo campo `reference_type` (`'PURCHASE'`) + `reference_id` | Auditoría Compra → Movimiento → Stock |
+| Ruta frontend | `/purchases` (spec la pide así) | Igual que la spec; resto del proyecto usa español |
+| RBAC | CASHIER solo `purchases.read`; INVENTORY_MANAGER ciclo completo | El cajero consulta pero no gestiona abastecimiento |
 
 ## Convenciones
 

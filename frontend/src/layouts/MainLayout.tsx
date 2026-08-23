@@ -8,6 +8,7 @@ const NAV_ITEMS = [
   { to: ROUTES.SUPPLIERS, label: 'Proveedores' },
   { to: ROUTES.PRODUCTS, label: 'Productos' },
   { to: ROUTES.INVENTORY, label: 'Inventario' },
+  { to: ROUTES.PURCHASES, label: 'Compras' },
 ];
 
 function MainLayout() {
@@ -65,7 +66,7 @@ function MainLayout() {
         <Outlet />
       </main>
       <footer className="bg-white py-4 text-center text-sm text-gray-500">
-        Fase 4 — Proveedores
+        Fase 5 — Compras y Abastecimiento
       </footer>
     </div>
   );

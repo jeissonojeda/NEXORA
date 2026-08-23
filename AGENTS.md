@@ -2,7 +2,7 @@
 
 ## Status
 
-Fase actual: Fase 4 (Proveedores) completada. Siguiente: Fase 5 (Ventas y Facturación).
+Fase actual: Fase 5 (Compras y Abastecimiento) completada. Siguiente: Fase 6 (Ventas y Facturación).
 
 ## Project intent
 
@@ -18,10 +18,10 @@ Ver `docs/ARCHITECTURE.md` para la documentación completa.
 backend/app/
   core/         → config, security (JWT+bcrypt), rbac, dependencies, exceptions
   db/           → session, base, seed (roles/permisos)
-  models/       → SQLAlchemy entities (User, Role, Permission, Supplier, Category, Product, InventoryMovement)
+  models/       → SQLAlchemy entities (User, Role, Permission, Supplier, Category, Product, InventoryMovement, Purchase, PurchaseItem)
   schemas/      → Pydantic validation
-  repositories/ → data access (CRUD base genérico + repos de catálogo/inventario)
-  services/     → business logic (aquí va la magia)
+  repositories/ → data access (CRUD base genérico + repos de catálogo/inventario/compras)
+  services/     → business logic (aquí va la magia; InventoryService es el ÚNICO punto de cambio de stock)
   api/routes/   → HTTP endpoints (sin lógica de negocio)
   cli.py        → python -m app.cli (seed-rbac, create-admin)
   ai/           → OpenAI integration
@@ -29,11 +29,11 @@ backend/app/
 
 frontend/src/
   components/   → ui/ (genéricos) + domain/ (específicos)
-  pages/        → una carpeta por módulo (auth, categories, suppliers, products, inventory)
-  services/     → Axios calls, una por dominio (api.ts + auth.ts + categories/suppliers/products/inventory)
+  pages/        → una carpeta por módulo (auth, categories, suppliers, products, inventory, purchases)
+  services/     → Axios calls, una por dominio (api.ts + auth.ts + categories/suppliers/products/inventory/purchases)
   contexts/     → AuthContext (sesión JWT restaurada desde localStorage)
   hooks/        → custom hooks (useAsync, useHealth)
-  types/        → interfaces TypeScript (+ auth.ts, catalog.ts)
+  types/        → interfaces TypeScript (+ auth.ts, catalog.ts, purchase.ts)
 ```
 
 ## Development commands
@@ -64,6 +64,8 @@ docker compose config                  # validar compose
 - Validación de datos con schemas Pydantic, no validaciones manuales.
 - Acceso a datos exclusivamente vía repositories + SQLAlchemy.
 - Transacciones de DB en operaciones críticas (ventas, inventario, caja).
+- Cambios de stock SOLO vía `InventoryService` (nunca `product.stock += n` desde otros módulos).
+- Dinero SIEMPRE `Decimal`/`NUMERIC`; nunca float.
 - Variables sensibles en `.env`, nunca hardcodeadas.
 - No instalar dependencias sin verificar que no exista una alternativa ya en el proyecto.
 - Frontend oculta/deshabilita elementos según permisos del usuario.

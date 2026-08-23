@@ -5,6 +5,7 @@ export const ROUTES = {
   SUPPLIERS: '/proveedores',
   PRODUCTS: '/productos',
   INVENTORY: '/inventario',
+  PURCHASES: '/purchases',
 } as const;
 
 export type RoutePath = (typeof ROUTES)[keyof typeof ROUTES];

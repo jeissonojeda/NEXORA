@@ -480,11 +480,17 @@ Si cualquier paso falla, se revierte toda la transacción.
 
 | Tipo | Efecto en stock | Descripción |
 |------|----------------|------------|
-| `entry` | + | Compra, devolución de cliente |
-| `sale` | - | Venta realizada |
-| `adjustment` | + / - | Corrección de inventario |
-| `return` | + | Devolución de venta |
-| `purchase` | + | Compra a proveedor |
+| `ENTRY` | + | Compra confirmada, devolución de cliente, entrada manual |
+| `EXIT` | - | Salida manual (merma, venta futura) |
+| `ADJUSTMENT` | + / - | Corrección de inventario |
+| `RETURN` | + | Devolución |
+
+### Trazabilidad
+
+- Cada movimiento registra: producto, tipo, cantidad, `previous_stock`,
+  `new_stock`, fecha, usuario (`created_by`), motivo y referencia opcional
+  (`reference_id` + `reference_type`; p. ej. `reference_type='PURCHASE'` con
+  el id de la compra que originó la entrada).
 
 ### Reglas
 
@@ -854,29 +860,47 @@ VITE_API_URL=http://localhost:8000/api
 - [x] Frontend: página `/proveedores` (listado, búsqueda, filtros, detalle modal con
       productos paginados, formulario completo) + selector/filtro de proveedor en productos
 
-### Fase 5 — Ventas y Facturación
+### Fase 5 — Compras y Abastecimiento ✅
+- [x] Modelo `Purchase` (estados DRAFT/CONFIRMED/CANCELLED) + `PurchaseItem` con snapshot histórico
+- [x] Número de compra backend `COMP-YYYY-NNNNNN` único (advisory lock + reintento)
+- [x] CRUD `/api/purchases` + gestión de ítems solo en DRAFT; DELETE = cancelación lógica
+- [x] Confirmación transaccional única: validaciones + entradas vía `InventoryService`
+      (`apply_entry`, sin commits intermedios) + estado CONFIRMED → COMMIT/ROLLBACK atómico
+- [x] Idempotencia y concurrencia: reconfirmar devuelve 409; `SELECT ... FOR UPDATE`
+      sobre la compra evita dobles confirmaciones simultáneas
+- [x] Trazabilidad: movimiento ENTRY con `reference_type='PURCHASE'` y
+      `reference_id=purchase.id` (auditoría Compra → Movimiento → Stock)
+- [x] Dinero con `Decimal`/`NUMERIC(14,2)`; sin float ni recálculos históricos
+- [x] RBAC: `purchases.read/create/update/confirm/cancel`; CASHIER solo lectura
+- [x] Migración `0004_purchases` (reversible) + `inventory_movements.reference_type`
+- [x] Frontend: `/purchases` (listado con filtros/paginación) y detalle editable
+      en DRAFT / solo lectura tras confirmar, con diálogo previo a la confirmación
+- [x] Tests: CRUD, ítems, cálculos Decimal, proveedor/producto inválido, confirmación,
+      idempotencia, rollback transaccional, estados y RBAC
+
+### Fase 6 — Ventas y Facturación
 - [ ] Flujo de venta completo (carrito, totales, confirmación)
 - [ ] Transacciones de base de datos
 - [ ] Generación de facturas
 - [ ] Métodos de pago
 - [ ] Frontend: punto de venta
 
-### Fase 6 — Clientes y Créditos
+### Fase 7 — Clientes y Créditos
 - [ ] CRUD de clientes
 - [ ] Créditos y abonos
 
-### Fase 7 — Caja
+### Fase 8 — Caja
 - [ ] Apertura y cierre de caja
 - [ ] Movimientos de caja
 - [ ] Resumen de turno
 
-### Fase 8 — Reportes e IA
+### Fase 9 — Reportes e IA
 - [ ] Reportes en PDF y Excel
 - [ ] Integración OpenAI
 - [ ] Análisis de ventas, predicción de demanda, recomendaciones
 - [ ] Dashboard y módulo IA
 
-### Fase 9 — Pulido y Despliegue
+### Fase 10 — Pulido y Despliegue
 - [ ] Auditoría de operaciones
 - [ ] Optimización y seguridad
 - [ ] Despliegue backend/frontend
@@ -949,3 +973,117 @@ Decisiones vigentes que extienden/aclaran este documento:
   sugería `/suppliers`); acciones de escritura ocultas sin rol ADMIN/
   INVENTORY_MANAGER; el selector de proveedor en productos carga solo activos
   (límite 100) con filtro por texto client-side.
+
+## 21.3 Notas de implementación de compras (Fase 5)
+
+Decisiones vigentes que extienden/aclaran este documento:
+
+### Modelo y estados
+
+- `Purchase`: `id`, `supplier_id` (RESTRICT), `purchase_number` único, `status`,
+  `subtotal/discount/tax/total` (`Numeric(14,2)`), `notes`, `created_by`,
+  timestamps y `confirmed_at`. Estados internos estables: `DRAFT`,
+  `CONFIRMED`, `CANCELLED` (CHECK en BD).
+- `PurchaseItem`: `purchase_id` (CASCADE), `product_id` (RESTRICT),
+  `quantity > 0`, `unit_cost >= 0`, `discount/tax/subtotal/total`
+  (`Numeric(12,2)`/`(14,2)`). Relación `Purchase 1 ── N PurchaseItem`.
+- **Snapshot:** los ítems guardan cantidad/costos/descuentos/impuestos
+  históricos; cambiar precios del producto nunca recalcula compras pasadas.
+- Un producto no puede repetirse dentro de la misma compra (409).
+
+### Número de compra
+
+- Generado por backend con formato `COMP-YYYY-NNNNNN` (secuencia por año).
+- En PostgreSQL se toma `pg_advisory_xact_lock('purchases_number')` antes de
+  consultar el último número del año; una colisión residual (IntegrityError
+  por UNIQUE) reintenta hasta 5 veces. En SQLite (tests) no hay lock pero el
+  lock global de escritura serializa.
+
+### Reglas por estado
+
+| Operación | DRAFT | CONFIRMED | CANCELLED |
+|-----------|-------|-----------|-----------|
+| Editar encabezado / ítems | ✅ | ❌ 409 | ❌ 409 |
+| Agregar/quitar ítems | ✅ | ❌ 409 | ❌ 409 |
+| Confirmar | ✅ | ❌ 409 (idempotente) | ❌ 409 |
+| Cancelar (DELETE) | ✅ → CANCELLED | ❌ 409 | ❌ 409 |
+| Borrado físico | Nunca | Nunca | Nunca |
+
+### Confirmación transaccional
+
+```
+BEGIN
+  SELECT ... FOR UPDATE sobre la compra (serializa confirmaciones concurrentes)
+  validar estado DRAFT + ≥1 item + proveedor activo + productos activos
+  para cada item:
+      InventoryService.apply_entry(...)   # ENTRY, SIN commit intermedio,
+                                          # bloquea fila de producto
+      → InventoryMovement(previous_stock, new_stock, created_by,
+                          reference_type='PURCHASE', reference_id=purchase.id)
+  purchase.status = CONFIRMED; confirmed_at = now()
+COMMIT        # ante cualquier excepción → ROLLBACK completo
+```
+
+- Todo cambio de stock pasa por `InventoryService` (nunca `product.stock += n`
+  desde PurchaseService ni routers). `apply_entry` es el núcleo sin commit que
+  participa en la transacción del llamador; `add_stock` lo reutiliza y confirma.
+- **Idempotencia:** si la compra ya está CONFIRMED el endpoint responde
+  409 `PURCHASE_ALREADY_CONFIRMED` sin tocar stock (confirmar dos veces no
+  duplica entradas).
+- **Rollback probado:** si cualquier `apply_entry` falla a mitad de la compra,
+  la compra queda DRAFT, el stock no cambia y no quedan movimientos parciales.
+- El proveedor debe existir y estar activo al crear Y al confirmar; los
+  productos también deben existir y estar activos.
+- No se modifica `Product.sale_price` ni `Product.purchase_price` al confirmar:
+  los precios comerciales pertenecen al módulo de productos (decisión
+  documentada; el costo histórico vive en `PurchaseItem.unit_cost`).
+
+### Cálculos (Decimal, redondeo ROUND_HALF_UP a 2 decimales)
+
+```
+item_subtotal = quantity × unit_cost
+item_total    = item_subtotal - item_discount + item_tax
+purchase.subtotal = Σ item_subtotal
+purchase.total    = purchase.subtotal - purchase_discount + purchase_tax
+```
+
+Descuento (ítem o encabezado) mayor que el subtotal → 422.
+
+### API
+
+| Método | Ruta | Notas |
+|--------|------|-------|
+| GET | `/api/purchases` | Filtros `supplier_id`, `status`, `date_from`, `date_to`, `q` (número); paginación `{items,total}`; proveedor precargado con JOIN (sin N+1) |
+| GET | `/api/purchases/{id}` | Detalle con ítems + nombre producto/proveedor/usuario |
+| POST | `/api/purchases` | Crea DRAFT (ítems opcionales); 201 |
+| PATCH | `/api/purchases/{id}` | Solo DRAFT: proveedor, notas, descuento, impuesto |
+| DELETE | `/api/purchases/{id}` | Cancelación lógica → CANCELLED; 204 |
+| POST | `/api/purchases/{id}/confirm` | Transaccional + idempotente; 200 |
+| POST/PATCH/DELETE | `/api/purchases/{id}/items[/{item_id}]` | Solo DRAFT |
+
+Errores: 404 `PURCHASE_NOT_FOUND` / `PURCHASE_ITEM_NOT_FOUND` /
+`SUPPLIER_NOT_FOUND` / `PRODUCT_NOT_FOUND`; 409 `PURCHASE_ALREADY_CONFIRMED`,
+`PURCHASE_CANCELLED`, `SUPPLIER_INACTIVE`, `PRODUCT_INACTIVE`,
+`PURCHASE_ITEM_DUPLICATE_PRODUCT`; 422 `PURCHASE_EMPTY`,
+`ITEM_DISCOUNT_EXCEEDS_SUBTOTAL`, `DISCOUNT_EXCEEDS_SUBTOTAL`.
+
+### RBAC
+
+- Permisos nuevos: `purchases.read/create/update/confirm/cancel`.
+- ADMIN: todo. INVENTORY_MANAGER: ciclo completo (crear/editar/confirmar/cancelar).
+- CASHIER: solo `purchases.read` (no puede crear, editar, confirmar ni cancelar).
+- Tras actualizar desde una versión anterior ejecutar
+  `python -m app.cli seed-rbac` (seed idempotente).
+
+### Frontend
+
+- Ruta `/purchases` (listado: número, proveedor, fecha, estado, total, acciones;
+  filtros por estado, proveedor y rango de fechas; paginación) y
+  `/purchases/:id` (detalle).
+- Crear compra = elegir proveedor activo → guardar borrador → agregar productos
+  con cantidad/costo/descuento/impuesto → ver subtotal/descuento/impuesto/total.
+- DRAFT muestra acciones (editar encabezado, agregar/editar/eliminar producto,
+  confirmar, cancelar); CONFIRMED/CANCELLED es solo lectura.
+- Confirmar exige diálogo explícito ("se actualizará el inventario... ya no
+  podrá editarse"); tras confirmar la UI recarga y refleja el stock nuevo.
+- Tipos en `types/purchase.ts`; llamadas HTTP en `services/purchases.ts`.

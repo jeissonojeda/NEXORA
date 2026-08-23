@@ -27,7 +27,7 @@ export default function ConfirmDialog({
 }: ConfirmDialogProps) {
   return (
     <Modal open={open} title={title} onClose={onCancel}>
-      <p className="text-sm text-gray-700">{message}</p>
+      <p className="whitespace-pre-line text-sm text-gray-700">{message}</p>
       {error && (
         <p className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
           {error}

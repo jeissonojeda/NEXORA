@@ -4,7 +4,7 @@ Sistema web profesional para la gestión integral de un supermercado, con módul
 
 ## Estado
 
-**Fase 1 — Fundamentos**, **Fase 2 — Autenticación, Usuarios y Roles**, **Fase 3 — Productos e Inventario** y **Fase 4 — Proveedores** completadas.
+**Fase 1 — Fundamentos**, **Fase 2 — Autenticación, Usuarios y Roles**, **Fase 3 — Productos e Inventario**, **Fase 4 — Proveedores** y **Fase 5 — Compras y Abastecimiento** completadas.
 
 ## Arquitectura
 
@@ -85,7 +85,7 @@ Nunca se usan credenciales fijas en el código; la contraseña se pide de forma 
 - Login vía `POST /api/auth/login` (formato OAuth2 form-urlencoded) → JWT bearer.
 - El JWT contiene únicamente `sub` (id del usuario) y `exp`.
 - Autorización RBAC en backend con permisos granulares (`users.read`, `sales.create`, ...).
-- Roles: `ADMIN` (todo), `CASHIER` (ventas, clientes, caja, lectura de catálogo/proveedores), `INVENTORY_MANAGER` (productos, inventario, proveedores, reportes).
+- Roles: `ADMIN` (todo), `CASHIER` (ventas, clientes, caja, lectura de catálogo/proveedores/compras), `INVENTORY_MANAGER` (productos, inventario, proveedores, compras, reportes).
 
 ## Endpoints Disponibles
 
@@ -124,6 +124,15 @@ Nunca se usan credenciales fijas en el código; la contraseña se pide de forma 
 | POST | `/api/inventory/exits` | Salida de stock (−; valida disponibilidad) | `inventory.create` |
 | POST | `/api/inventory/returns` | Devolución (+) | `inventory.create` |
 | POST | `/api/inventory/adjustments` | Ajuste a stock objetivo (motivo obligatorio) | `inventory.update` |
+| GET | `/api/purchases` | Listar compras (filtros: proveedor, estado, fechas, número; paginación `{items,total}`) | `purchases.read` |
+| GET | `/api/purchases/{id}` | Detalle de compra con ítems (snapshot histórico) | `purchases.read` |
+| POST | `/api/purchases` | Crear compra en DRAFT (opcionalmente con ítems) | `purchases.create` |
+| PATCH | `/api/purchases/{id}` | Editar encabezado (solo DRAFT) | `purchases.update` |
+| DELETE | `/api/purchases/{id}` | Cancelar compra (lógico; nunca físico) | `purchases.cancel` |
+| POST | `/api/purchases/{id}/confirm` | Confirmar compra → entrada de inventario transaccional e idempotente | `purchases.confirm` |
+| POST | `/api/purchases/{id}/items` | Agregar ítem a compra DRAFT | `purchases.update` |
+| PATCH | `/api/purchases/{id}/items/{item_id}` | Modificar ítem (solo DRAFT) | `purchases.update` |
+| DELETE | `/api/purchases/{id}/items/{item_id}` | Eliminar ítem (solo DRAFT) | `purchases.update` |
 | GET | `/api/docs` | Documentación Swagger (dev) | — |
 
 ## Variables de Entorno

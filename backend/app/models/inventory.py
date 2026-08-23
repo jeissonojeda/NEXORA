@@ -45,6 +45,7 @@ class InventoryMovement(Base):
     new_stock: Mapped[int] = mapped_column(Integer)
     reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
     reference_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    reference_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
     created_by: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("users.id", ondelete="RESTRICT")
     )

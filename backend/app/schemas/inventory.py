@@ -32,6 +32,7 @@ class MovementResponse(BaseModel):
     new_stock: int
     reason: str | None
     reference_id: str | None
+    reference_type: str | None
     created_by: UUID
     created_by_username: str | None
     created_at: datetime
