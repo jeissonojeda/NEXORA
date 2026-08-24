@@ -250,6 +250,45 @@ Después de actualizar desde una versión anterior ejecutar
 `purchases.read/create/update/confirm/cancel` y asignarlos a los roles
 (seed idempotente).
 
+## Clientes y Cuentas por Cobrar (Fase 6)
+
+### Reglas de negocio implementadas
+
+- **Clientes:** identificación opcional pero única (vacía → NULL; duplicada →
+  409). DELETE = desactivación lógica; el historial financiero nunca se borra.
+- **Crédito:** `credit_enabled` + `credit_limit >= 0`; el saldo
+  (`current_balance`) jamás puede exceder el límite (CHECK en BD y validación
+  en servicio). El límite no puede bajarse por debajo del saldo (409) ni
+  habilitarse crédito sin límite > 0 (422).
+- **Cuentas por cobrar:** `OPEN → PARTIALLY_PAID → PAID`, o `CANCELLED`.
+  Invariantes CHECK: `original_amount > 0`, `balance = original_amount -
+  paid_amount >= 0`. Crear una cuenta suma al saldo del cliente; exige crédito
+  habilitado, cupo suficiente y cliente activo (409 con código específico).
+- **Pagos atómicos:** una transacción bloquea la cuenta y el cliente
+  (`SELECT ... FOR UPDATE`), valida monto ≤ saldo, inserta el pago, actualiza
+  cuenta y descuenta el saldo vía `CustomerCreditService` (ÚNICO punto de
+  cambio de saldo). Fallo a mitad → ROLLBACK completo.
+- **Idempotencia:** `idempotency_key` única opcional; repetir la clave devuelve
+  el pago original (200) sin mover saldos. Sin clave, cada pago es nuevo.
+- **Anulación:** solo cuentas OPEN/PARTIALLY_PAID; el saldo restante sale del
+  cliente (write-off) y los abonos previos se conservan como historial.
+- **Estado de cuenta:** `GET /api/customers/{id}/statement` resume crédito,
+  conteos por estado, deuda vigente (`total_balance`) y listados paginados.
+- **Dinero:** `Decimal`/`NUMERIC(14,2)`; serializado como string al frontend.
+
+### Frontend
+
+- Rutas `/clientes` (listado con búsqueda/filtros estado/crédito, formulario
+  con sección de crédito) y `/clientes/:id` (tarjetas de crédito/deuda,
+  tabla de cuentas con Abonar/Anular según permiso, historial de pagos).
+- El modal de abono genera automáticamente una `idempotency_key` estable por
+  intento: reintentar tras un error de red nunca cobra dos veces.
+
+Después de actualizar desde una versión anterior ejecutar
+`python -m app.cli seed-rbac` para crear los permisos nuevos
+`customers.delete` y `receivables.read/create/payment/cancel` y asignarlos a
+los roles (seed idempotente).
+
 ## Productos e Inventario (Fase 3)
 
 ### Reglas de negocio implementadas

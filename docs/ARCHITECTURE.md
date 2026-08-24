@@ -878,16 +878,34 @@ VITE_API_URL=http://localhost:8000/api
 - [x] Tests: CRUD, ítems, cálculos Decimal, proveedor/producto inválido, confirmación,
       idempotencia, rollback transaccional, estados y RBAC
 
-### Fase 6 — Ventas y Facturación
+### Fase 6 — Ventas y Facturación *(siguiente)*
 - [ ] Flujo de venta completo (carrito, totales, confirmación)
 - [ ] Transacciones de base de datos
 - [ ] Generación de facturas
 - [ ] Métodos de pago
 - [ ] Frontend: punto de venta
 
-### Fase 7 — Clientes y Créditos
-- [ ] CRUD de clientes
-- [ ] Créditos y abonos
+### Fase 7 — Clientes y Créditos ✅
+> Ejecutada antes que ventas con el título "Fase 6 — Clientes y Cuentas por
+> Cobrar" (las ventas la requieren para el crédito). Detalle en §21.4.
+
+- [x] CRUD de clientes (`/api/customers`) con borrado lógico e historial íntegro
+- [x] Identificación única opcional (vacío→NULL; duplicado→409)
+- [x] Crédito: `credit_enabled`, `credit_limit`, `current_balance`,
+      `credit_available`; límite nunca por debajo del saldo (409)
+- [x] Cuentas por cobrar (`receivable_accounts`) OPEN/PARTIALLY_PAID/PAID/CANCELLED
+      con invariantes CHECK (`balance = original_amount - paid_amount`, etc.)
+- [x] Pagos atómicos con `SELECT ... FOR UPDATE` (cuenta + cliente) vía
+      `CustomerCreditService` como ÚNICO punto de cambio de saldo
+- [x] Idempotencia de pagos (`idempotency_key` único): repetir NO duplica
+- [x] Anulación (write-off del saldo restante conservando pagos históricos)
+- [x] Estado de cuenta `GET /api/customers/{id}/statement`
+- [x] RBAC: `customers.read/create/update/delete` + `receivables.read/create/
+      payment/cancel`; CASHIER cobra pero no crea/anula cuentas ni borra clientes
+- [x] Migración `0005_customers_receivables` (reversible)
+- [x] Frontend: `/clientes` (listado/formulario) + `/clientes/:id` (estado de
+      cuenta, abonos con clave idempotente autogenerada, anulación)
+- [x] Tests: 42 nuevos (crédito, pagos, idempotencia, anulación, statement, RBAC)
 
 ### Fase 8 — Caja
 - [ ] Apertura y cierre de caja
@@ -1087,3 +1105,88 @@ Errores: 404 `PURCHASE_NOT_FOUND` / `PURCHASE_ITEM_NOT_FOUND` /
 - Confirmar exige diálogo explícito ("se actualizará el inventario... ya no
   podrá editarse"); tras confirmar la UI recarga y refleja el stock nuevo.
 - Tipos en `types/purchase.ts`; llamadas HTTP en `services/purchases.ts`.
+
+## 21.4 Notas de implementación de clientes y cuentas por cobrar (Fase 6)
+
+Decisiones vigentes que extienden/aclaran este documento:
+
+### Modelo
+
+- `Customer`: `identification` única **opcional** (vacío/espacios → NULL;
+  duplicado → 409), `name`, contacto opcional, `is_active`,
+  `credit_enabled` (default false), `credit_limit >= 0`,
+  `current_balance >= 0`. CHECK: si `credit_enabled`, entonces
+  `current_balance <= credit_limit`. Propiedad `credit_available`
+  (nunca negativa, siempre escala 2; 0.00 sin crédito).
+- `ReceivableAccount`: `customer_id` (RESTRICT), `reference_type`
+  MANUAL/SALE (SALE reservado para el módulo de ventas), `description`,
+  `original_amount > 0`, `paid_amount >= 0`, `balance = original_amount -
+  paid_amount` (CHECK), `due_date`, estado OPEN/PARTIALLY_PAID/PAID/CANCELLED
+  (CHECK). Los pagos son historial inmutable.
+- `ReceivablePayment`: `amount > 0`, método CASH/CARD/TRANSFER/OTHER (CHECK),
+  `reference`, `notes`, `created_by`; `idempotency_key` String(100) **única
+  nullable** como red de seguridad contra carreras.
+
+### CustomerCreditService (guardarraíles del crédito)
+
+- Es el ÚNICO componente que modifica `current_balance`
+  (`increase_balance`/`decrease_balance`); asume fila bloqueada FOR UPDATE por
+  el llamador y no hace commit (compone transacciones).
+- `ensure_can_assume_debt`: exige cliente activo + crédito habilitado +
+  saldo proyectado ≤ límite; si falla → 409 `CUSTOMER_INACTIVE`,
+  `CREDIT_NOT_ENABLED`, `CREDIT_LIMIT_EXCEEDED`.
+- `decrease_balance` garantiza saldo nunca negativo (409).
+
+### Pagos (transacción + idempotencia)
+
+```
+si idempotency_key existe en BD → devolver pago original SIN mover nada (200)
+BEGIN
+  SELECT ... FOR UPDATE cuenta   (y re-chequeo de la clave bajo lock)
+  validar estado OPEN/PARTIALLY_PAID y monto ≤ balance (409)
+  SELECT ... FOR UPDATE cliente
+  INSERT payment; paid_amount += monto; balance = original - paid;
+      status = PAID | PARTIALLY_PAID
+  CustomerCreditService.decrease_balance(cliente, monto)
+COMMIT        # ante cualquier excepción → ROLLBACK completo
+```
+
+- Repetir un pago con la misma clave responde 200 con el pago original
+  (creación → 201); nunca se aplica dos veces. Sin clave cada pago es válido.
+- Anulación (`POST /receivables/{id}/cancel`): solo OPEN/PARTIALLY_PAID;
+  descuenta el saldo restante del cliente (write-off) conservando los abonos
+  como historial; la cuenta CANCELLED conserva su `balance` a modo de registro.
+
+### API
+
+| Método | Ruta | Notas |
+|--------|------|-------|
+| GET | `/api/customers` | Búsqueda (nombre/identif./email/tel.), filtros `is_active`/`credit_enabled`, orden whitelist, `{items,total}` |
+| GET | `/api/customers/{id}` | Incluye `credit_available` |
+| POST/PATCH | `/api/customers[/{id}]` | Límite nunca bajo el saldo (409); habilitar crédito exige límite > 0 (422) |
+| DELETE | `/api/customers/{id}` | Desactivación lógica; historial intacto |
+| GET | `/api/customers/{id}/statement` | Crédito + conteos por estado + `total_balance` + cuentas y pagos paginados |
+| GET/POST | `/api/receivables` | POST es puente administrativo hasta ventas (`receivables.create`) |
+| GET | `/api/receivables/{id}` y `/{id}/payments` | Detalle e historial de pagos |
+| POST | `/api/receivables/{id}/payments` | Atómico + idempotente; 201 creado / 200 replay |
+| POST | `/api/receivables/{id}/cancel` | Write-off del saldo restante |
+
+Errores: 404 `CUSTOMER_NOT_FOUND` / `RECEIVABLE_NOT_FOUND`;
+409 `CUSTOMER_IDENTIFICATION_ALREADY_EXISTS`, `CREDIT_LIMIT_BELOW_BALANCE`,
+`CREDIT_LIMIT_EXCEEDED`, `CREDIT_NOT_ENABLED`, `CUSTOMER_INACTIVE`,
+`PAYMENT_EXCEEDS_BALANCE`, `RECEIVABLE_ALREADY_PAID`, `RECEIVABLE_CANCELLED`,
+`RECEIVABLE_ALREADY_CANCELLED`.
+
+### RBAC y frontend
+
+- Permisos nuevos: `customers.delete`, `receivables.read/create/payment/cancel`.
+- ADMIN todo; INVENTORY_MANAGER gestiona clientes (sin delete ni receivables);
+  CASHIER lee clientes y registra pagos, pero no crea/anula cuentas ni borra
+  clientes. Ejecutar `python -m app.cli seed-rbac` tras actualizar.
+- Frontend: `/clientes` (listado con búsqueda/filtros, formulario con sección
+  de crédito) y `/clientes/:id` (tarjetas de crédito/deuda, cuentas con
+  acciones Abonar/Anular según permisos, historial de pagos). El modal de
+  abono autogenera una `idempotency_key` estable por intento (UUID): un
+  reintento tras error de red jamás cobra dos veces.
+- Tipos en `types/customer.ts`; HTTP en `services/customers.ts` y
+  `services/receivables.ts`.

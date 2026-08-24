@@ -4,7 +4,7 @@ Sistema web profesional para la gestión integral de un supermercado, con módul
 
 ## Estado
 
-**Fase 1 — Fundamentos**, **Fase 2 — Autenticación, Usuarios y Roles**, **Fase 3 — Productos e Inventario**, **Fase 4 — Proveedores** y **Fase 5 — Compras y Abastecimiento** completadas.
+**Fase 1 — Fundamentos**, **Fase 2 — Autenticación, Usuarios y Roles**, **Fase 3 — Productos e Inventario**, **Fase 4 — Proveedores**, **Fase 5 — Compras y Abastecimiento** y **Fase 6 — Clientes y Cuentas por Cobrar** completadas.
 
 ## Arquitectura
 
@@ -85,7 +85,7 @@ Nunca se usan credenciales fijas en el código; la contraseña se pide de forma 
 - Login vía `POST /api/auth/login` (formato OAuth2 form-urlencoded) → JWT bearer.
 - El JWT contiene únicamente `sub` (id del usuario) y `exp`.
 - Autorización RBAC en backend con permisos granulares (`users.read`, `sales.create`, ...).
-- Roles: `ADMIN` (todo), `CASHIER` (ventas, clientes, caja, lectura de catálogo/proveedores/compras), `INVENTORY_MANAGER` (productos, inventario, proveedores, compras, reportes).
+- Roles: `ADMIN` (todo), `CASHIER` (ventas, clientes, abonos de cuentas por cobrar, caja, lectura de catálogo/proveedores/compras), `INVENTORY_MANAGER` (productos, inventario, proveedores, compras, clientes, reportes).
 
 ## Endpoints Disponibles
 
@@ -133,6 +133,18 @@ Nunca se usan credenciales fijas en el código; la contraseña se pide de forma 
 | POST | `/api/purchases/{id}/items` | Agregar ítem a compra DRAFT | `purchases.update` |
 | PATCH | `/api/purchases/{id}/items/{item_id}` | Modificar ítem (solo DRAFT) | `purchases.update` |
 | DELETE | `/api/purchases/{id}/items/{item_id}` | Eliminar ítem (solo DRAFT) | `purchases.update` |
+| GET | `/api/customers` | Listar clientes (búsqueda, filtros estado/crédito, orden, `{items,total}`) | `customers.read` |
+| GET | `/api/customers/{id}` | Detalle de cliente (+ crédito disponible) | `customers.read` |
+| POST | `/api/customers` | Crear cliente | `customers.create` |
+| PATCH | `/api/customers/{id}` | Actualizar cliente / crédito (límite ≥ saldo) | `customers.update` |
+| DELETE | `/api/customers/{id}` | Desactivar cliente (lógico; historial intacto) | `customers.delete` |
+| GET | `/api/customers/{id}/statement` | Estado de cuenta (crédito, cuentas y pagos) | `receivables.read` |
+| GET | `/api/receivables` | Listar cuentas por cobrar (filtros cliente/estado/fechas) | `receivables.read` |
+| GET | `/api/receivables/{id}` | Detalle de cuenta por cobrar | `receivables.read` |
+| GET | `/api/receivables/{id}/payments` | Historial de pagos de la cuenta | `receivables.read` |
+| POST | `/api/receivables` | Crear cuenta por cobrar manual (puente hasta ventas) | `receivables.create` |
+| POST | `/api/receivables/{id}/payments` | Registrar pago atómico e idempotente (`idempotency_key`) | `receivables.payment` |
+| POST | `/api/receivables/{id}/cancel` | Anular cuenta (write-off del saldo restante) | `receivables.cancel` |
 | GET | `/api/docs` | Documentación Swagger (dev) | — |
 
 ## Variables de Entorno

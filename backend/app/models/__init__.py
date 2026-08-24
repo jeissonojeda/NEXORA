@@ -1,4 +1,13 @@
 ﻿from app.models.category import Category
+from app.models.customer import (
+    Customer,
+    PaymentMethods,
+    ReceivableAccount,
+    ReceivableAccountStatuses,
+    ReceivablePayment,
+    VALID_PAYMENT_METHODS,
+    VALID_RECEIVABLE_STATUSES,
+)
 from app.models.inventory import InventoryMovement, MovementTypes
 from app.models.product import Product
 from app.models.purchase import (
@@ -19,6 +28,13 @@ __all__ = [
     "Category",
     "Supplier",
     "Product",
+    "Customer",
+    "ReceivableAccount",
+    "ReceivablePayment",
+    "ReceivableAccountStatuses",
+    "VALID_RECEIVABLE_STATUSES",
+    "PaymentMethods",
+    "VALID_PAYMENT_METHODS",
     "InventoryMovement",
     "MovementTypes",
     "Purchase",

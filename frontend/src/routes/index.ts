@@ -6,6 +6,7 @@ export const ROUTES = {
   PRODUCTS: '/productos',
   INVENTORY: '/inventario',
   PURCHASES: '/purchases',
+  CUSTOMERS: '/clientes',
 } as const;
 
 export type RoutePath = (typeof ROUTES)[keyof typeof ROUTES];

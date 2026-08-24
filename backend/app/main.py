@@ -9,10 +9,12 @@ from fastapi.responses import JSONResponse
 
 from app.api.routes.auth import router as auth_router
 from app.api.routes.categories import router as categories_router
+from app.api.routes.customers import router as customers_router
 from app.api.routes.health import router as health_router
 from app.api.routes.inventory import router as inventory_router
 from app.api.routes.products import router as products_router
 from app.api.routes.purchases import router as purchases_router
+from app.api.routes.receivables import router as receivables_router
 from app.api.routes.suppliers import router as suppliers_router
 from app.api.routes.users import router as users_router
 from app.core.config import get_settings
@@ -59,6 +61,8 @@ app.include_router(suppliers_router, prefix="/api")
 app.include_router(products_router, prefix="/api")
 app.include_router(inventory_router, prefix="/api")
 app.include_router(purchases_router, prefix="/api")
+app.include_router(customers_router, prefix="/api")
+app.include_router(receivables_router, prefix="/api")
 
 
 @app.exception_handler(AppError)

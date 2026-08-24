@@ -37,6 +37,12 @@ class Permissions:
     CUSTOMERS_READ = "customers.read"
     CUSTOMERS_CREATE = "customers.create"
     CUSTOMERS_UPDATE = "customers.update"
+    CUSTOMERS_DELETE = "customers.delete"
+
+    RECEIVABLES_READ = "receivables.read"
+    RECEIVABLES_CREATE = "receivables.create"
+    RECEIVABLES_PAYMENT = "receivables.payment"
+    RECEIVABLES_CANCEL = "receivables.cancel"
 
     SUPPLIERS_READ = "suppliers.read"
     SUPPLIERS_CREATE = "suppliers.create"
@@ -82,6 +88,11 @@ ALL_PERMISSIONS: dict[str, str] = {
     Permissions.CUSTOMERS_READ: "Consultar clientes",
     Permissions.CUSTOMERS_CREATE: "Crear clientes",
     Permissions.CUSTOMERS_UPDATE: "Actualizar clientes",
+    Permissions.CUSTOMERS_DELETE: "Desactivar clientes",
+    Permissions.RECEIVABLES_READ: "Consultar cuentas por cobrar",
+    Permissions.RECEIVABLES_CREATE: "Crear cuentas por cobrar",
+    Permissions.RECEIVABLES_PAYMENT: "Registrar pagos de cuentas por cobrar",
+    Permissions.RECEIVABLES_CANCEL: "Anular cuentas por cobrar",
     Permissions.SUPPLIERS_READ: "Consultar proveedores",
     Permissions.SUPPLIERS_CREATE: "Crear proveedores",
     Permissions.SUPPLIERS_UPDATE: "Actualizar proveedores",
@@ -123,6 +134,11 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         Permissions.INVENTORY_READ,
         Permissions.SUPPLIERS_READ,
         Permissions.PURCHASES_READ,
+        Permissions.CUSTOMERS_READ,
+        Permissions.CUSTOMERS_CREATE,
+        Permissions.CUSTOMERS_UPDATE,
+        Permissions.RECEIVABLES_READ,
+        Permissions.RECEIVABLES_PAYMENT,
     ),
     Roles.INVENTORY_MANAGER: _codes(
         Permissions.PRODUCTS_READ,
@@ -145,6 +161,9 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         Permissions.PURCHASES_UPDATE,
         Permissions.PURCHASES_CONFIRM,
         Permissions.PURCHASES_CANCEL,
+        Permissions.CUSTOMERS_READ,
+        Permissions.CUSTOMERS_CREATE,
+        Permissions.CUSTOMERS_UPDATE,
         Permissions.REPORTS_READ,
         Permissions.REPORTS_EXPORT,
     ),
