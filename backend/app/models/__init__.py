@@ -18,6 +18,15 @@ from app.models.purchase import (
     VALID_PURCHASE_STATUSES,
 )
 from app.models.role import Permission, Role
+from app.models.sale import (
+    FULL_PAYMENT_METHODS,
+    PaymentMethods as SalePaymentMethods,
+    Sale,
+    SaleItem,
+    SaleStatuses,
+    VALID_PAYMENT_METHODS as VALID_SALE_PAYMENT_METHODS,
+    VALID_SALE_STATUSES,
+)
 from app.models.supplier import Supplier
 from app.models.user import User
 
@@ -42,4 +51,11 @@ __all__ = [
     "PurchaseStatuses",
     "VALID_PURCHASE_STATUSES",
     "MovementReferences",
+    "Sale",
+    "SaleItem",
+    "SaleStatuses",
+    "VALID_SALE_STATUSES",
+    "SalePaymentMethods",
+    "VALID_SALE_PAYMENT_METHODS",
+    "FULL_PAYMENT_METHODS",
 ]

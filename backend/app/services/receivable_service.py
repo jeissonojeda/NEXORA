@@ -105,18 +105,22 @@ class ReceivableService:
     # ------------------------------------------------------------------
     # Crear cuenta por cobrar
     # ------------------------------------------------------------------
-    def create_receivable(
+    def _create_receivable_core(
         self,
         customer_id: UUID,
         original_amount: Decimal,
-        description: str | None = None,
-        due_date=None,
-        reference_type: str = "MANUAL",
-        reference_id: str | None = None,
+        description: str | None,
+        due_date,
+        reference_type: str,
+        reference_id: str | None,
     ) -> ReceivableAccount:
-        """API de servicio reutilizable: SalesService la llamará en Fase 7.
+        """Núcleo de creación de cuenta SIN commit ni rollback.
 
-        Aumenta current_balance del cliente dentro de la misma transacción.
+        Valida monto/referencia, bloquea al cliente, verifica cupo
+        (ensure_can_assume_debt), crea la cuenta OPEN y aumenta el saldo vía
+        CustomerCreditService. Participa en la transacción del llamador:
+        si algo falla después (p. ej. el descuento de stock en una venta),
+        el rollback del llamador deshace también la cuenta y el saldo.
         """
         if reference_type not in VALID_REFERENCES:
             raise AppError(
@@ -131,22 +135,66 @@ class ReceivableService:
                 error_code="RECEIVABLE_AMOUNT_POSITIVE",
                 message="El monto debe ser mayor que cero",
             )
+        customer = self.credit.lock_customer(customer_id)  # 404 si no existe
+        self.credit.ensure_can_assume_debt(customer, amount)
+        account = ReceivableAccount(
+            customer_id=customer.id,
+            reference_type=reference_type,
+            reference_id=reference_id,
+            description=description.strip() if description else None,
+            original_amount=amount,
+            paid_amount=money(Decimal("0")),
+            balance=amount,
+            due_date=due_date,
+            status=ReceivableAccountStatuses.OPEN,
+        )
+        self.receivables.add(account)
+        self.credit.increase_balance(customer, amount)
+        return account
+
+    def create_receivable_in_transaction(
+        self,
+        customer_id: UUID,
+        original_amount: Decimal,
+        description: str | None = None,
+        due_date=None,
+        reference_type: str = "SALE",
+        reference_id: str | None = None,
+    ) -> ReceivableAccount:
+        """Variante sin commit para composición transaccional.
+
+        SalesService la usa dentro de la confirmación de una venta a crédito:
+        la cuenta por cobrar se crea en la MISMA transacción que el descuento
+        de stock y el cambio de estado de la venta.
+        """
+        return self._create_receivable_core(
+            customer_id=customer_id,
+            original_amount=original_amount,
+            description=description,
+            due_date=due_date,
+            reference_type=reference_type,
+            reference_id=reference_id,
+        )
+
+    def create_receivable(
+        self,
+        customer_id: UUID,
+        original_amount: Decimal,
+        description: str | None = None,
+        due_date=None,
+        reference_type: str = "MANUAL",
+        reference_id: str | None = None,
+    ) -> ReceivableAccount:
+        """API de servicio con commit propio (operación independiente)."""
         try:
-            customer = self.credit.lock_customer(customer_id)  # 404 si no existe
-            self.credit.ensure_can_assume_debt(customer, amount)
-            account = ReceivableAccount(
-                customer_id=customer.id,
+            account = self._create_receivable_core(
+                customer_id=customer_id,
+                original_amount=original_amount,
+                description=description,
+                due_date=due_date,
                 reference_type=reference_type,
                 reference_id=reference_id,
-                description=description.strip() if description else None,
-                original_amount=amount,
-                paid_amount=money(Decimal("0")),
-                balance=amount,
-                due_date=due_date,
-                status=ReceivableAccountStatuses.OPEN,
             )
-            self.receivables.add(account)
-            self.credit.increase_balance(customer, amount)
             self.db.commit()
         except Exception:
             self.db.rollback()

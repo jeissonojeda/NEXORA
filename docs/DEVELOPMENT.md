@@ -213,6 +213,12 @@ El frontend estará disponible en: http://localhost:5173
 | PATCH/DELETE | `/api/purchases/{id}` | Editar encabezado (DRAFT) / cancelar (lógico) | `purchases.update` / `purchases.cancel` |
 | POST | `/api/purchases/{id}/confirm` | Confirmar: entrada de inventario transaccional e idempotente | `purchases.confirm` |
 | POST/PATCH/DELETE | `/api/purchases/{id}/items[/{item_id}]` | Gestionar ítems (solo DRAFT) | `purchases.update` |
+| GET | `/api/sales?customer_id=&status=&date_from=&date_to=&q=` | Listar ventas (`{items,total}`) | `sales.read` |
+| GET | `/api/sales/{id}` | Detalle de venta con ítems (snapshot) | `sales.read` |
+| POST | `/api/sales` | Crear venta DRAFT (ítems opcionales) | `sales.create` |
+| PATCH/DELETE | `/api/sales/{id}` | Editar encabezado/cliente/pago (DRAFT) / cancelar (lógico) | `sales.update` / `sales.cancel` |
+| POST | `/api/sales/{id}/confirm` | Confirmar: salida de stock transaccional; crédito genera cuenta por cobrar | `sales.confirm` |
+| POST/PATCH/DELETE | `/api/sales/{id}/items[/{item_id}]` | Gestionar ítems del carrito (solo DRAFT) | `sales.update` |
 
 ## Compras y Abastecimiento (Fase 5)
 
@@ -288,6 +294,41 @@ Después de actualizar desde una versión anterior ejecutar
 `python -m app.cli seed-rbac` para crear los permisos nuevos
 `customers.delete` y `receivables.read/create/payment/cancel` y asignarlos a
 los roles (seed idempotente).
+
+## Ventas y Facturación (Fase 7)
+
+### Reglas de negocio implementadas
+
+- **Ciclo de vida:** `DRAFT → CONFIRMED | CANCELLED`. Solo DRAFT es editable,
+  recibe ítems o se cancela; CONFIRMED es inmutable (re-confirmar → 409) e
+  igual que compras nunca se borra físicamente.
+- **Numeración:** `VTA-YYYY-NNNNNN` con lock de numeración + reintento ante
+  colisión (mismo patrón que compras).
+- **Snapshot de precios:** cada ítem guarda su `unit_price` al momento; cambiar
+  el precio del producto no altera ventas pasadas.
+- **Confirmación atómica:** un solo commit bloquea la venta, valida productos,
+  descuenta stock vía `InventoryService` (movimientos EXIT trazables con
+  `reference_type='SALE'`) y, si es a crédito, crea la cuenta por cobrar vía
+  `CustomerCreditService`. Cualquier fallo (stock insuficiente, cupo excedido)
+  hace ROLLBACK completo: ni stock ni saldo quedan tocados.
+- **Pagos:** CASH asume pago exacto si no se registra efectivo; con monto
+  exige cubrir el total (422) y calcula vuelto. CARD/TRANSFER registran pago
+  completo. CREDIT exige cliente activo con crédito habilitado y cupo
+  suficiente; el cobro real ocurre al abonar la cuenta generada.
+- **Dinero:** `Decimal`/NUMERIC; subtotal/descuento/impuesto por ítem y
+  encabezado, ROUND_HALF_UP.
+
+### Frontend
+
+- Rutas `/ventas` (historial con filtros estado/número/fechas),
+  `/pos` (búsqueda por nombre o código de barras, carrito con control de
+  disponibilidad, cliente opcional con crédito visible, métodos de pago,
+  vuelto estimado; cobrar = crear + confirmar en un paso) y `/ventas/:id`
+  (comprobante con Confirmar/Cancelar según estado y permisos).
+
+Después de actualizar desde una versión anterior ejecutar
+`python -m app.cli seed-rbac` para crear los permisos nuevos
+`sales.update/confirm/cancel` y asignarlos a los roles (seed idempotente).
 
 ## Productos e Inventario (Fase 3)
 

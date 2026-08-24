@@ -9,6 +9,8 @@ const NAV_ITEMS = [
   { to: ROUTES.PRODUCTS, label: 'Productos' },
   { to: ROUTES.INVENTORY, label: 'Inventario' },
   { to: ROUTES.PURCHASES, label: 'Compras' },
+  { to: ROUTES.SALES, label: 'Ventas' },
+  { to: ROUTES.POS, label: 'Nueva venta' },
   { to: ROUTES.CUSTOMERS, label: 'Clientes' },
 ];
 
@@ -67,7 +69,7 @@ function MainLayout() {
         <Outlet />
       </main>
       <footer className="bg-white py-4 text-center text-sm text-gray-500">
-        Fase 6 — Clientes y Cuentas por Cobrar
+        Fase 7 — Ventas y Facturación
       </footer>
     </div>
   );

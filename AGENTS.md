@@ -2,7 +2,7 @@
 
 ## Status
 
-Fase actual: Fase 6 (Clientes y Cuentas por Cobrar) completada — ejecutada antes de ventas. Siguiente: Ventas y Facturación.
+Fase actual: Fase 7 (Ventas y Facturación) completada. Siguiente: Caja.
 
 ## Project intent
 
@@ -18,9 +18,9 @@ Ver `docs/ARCHITECTURE.md` para la documentación completa.
 backend/app/
   core/         → config, security (JWT+bcrypt), rbac, dependencies, exceptions
   db/           → session, base, seed (roles/permisos)
-  models/       → SQLAlchemy entities (User, Role, Permission, Supplier, Category, Product, InventoryMovement, Purchase, PurchaseItem, Customer, ReceivableAccount, ReceivablePayment)
+  models/       → SQLAlchemy entities (User, Role, Permission, Supplier, Category, Product, InventoryMovement, Purchase, PurchaseItem, Customer, ReceivableAccount, ReceivablePayment, Sale, SaleItem)
   schemas/      → Pydantic validation
-  repositories/ → data access (CRUD base genérico + repos de catálogo/inventario/compras/clientes/cuentas)
+  repositories/ → data access (CRUD base genérico + repos de catálogo/inventario/compras/clientes/cuentas/ventas)
   services/     → business logic (aquí va la magia; InventoryService es el ÚNICO punto de cambio de stock; CustomerCreditService es el ÚNICO punto de cambio del saldo de clientes)
   api/routes/   → HTTP endpoints (sin lógica de negocio)
   cli.py        → python -m app.cli (seed-rbac, create-admin)
@@ -29,11 +29,11 @@ backend/app/
 
 frontend/src/
   components/   → ui/ (genéricos) + domain/ (específicos)
-  pages/        → una carpeta por módulo (auth, categories, suppliers, products, inventory, purchases, customers)
-  services/     → Axios calls, una por dominio (api.ts + auth.ts + categories/suppliers/products/inventory/purchases/customers/receivables)
+  pages/        → una carpeta por módulo (auth, categories, suppliers, products, inventory, purchases, customers, sales)
+  services/     → Axios calls, una por dominio (api.ts + auth.ts + categories/suppliers/products/inventory/purchases/customers/receivables/sales)
   contexts/     → AuthContext (sesión JWT restaurada desde localStorage)
   hooks/        → custom hooks (useAsync, useHealth)
-  types/        → interfaces TypeScript (+ auth.ts, catalog.ts, purchase.ts, customer.ts)
+  types/        → interfaces TypeScript (+ auth.ts, catalog.ts, purchase.ts, customer.ts, sale.ts)
 ```
 
 ## Development commands

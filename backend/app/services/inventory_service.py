@@ -140,14 +140,23 @@ class InventoryService:
         self._commit_and_refresh(product, movement)
         return movement
 
-    def remove_stock(
+    def apply_exit(
         self,
         product_id: UUID,
         quantity: int,
         created_by: UUID,
         reason: str | None = None,
         reference_id: str | None = None,
+        reference_type: str | None = None,
     ) -> InventoryMovement:
+        """Núcleo de salida de stock SIN hacer commit.
+
+        Participa en la transacción del llamador (p. ej. confirmación de
+        ventas), garantizando atomicidad entre stock y movimientos. Si el
+        stock resulta insuficiente se lanza 409 y el llamador debe hacer
+        rollback para deshacer las salidas ya aplicadas.
+        Bloquea la fila del producto hasta el COMMIT del llamador.
+        """
         self._validate_quantity(quantity)
         product = self._lock_product(product_id)
 
@@ -163,7 +172,7 @@ class InventoryService:
 
         previous_stock = product.stock
         product.stock = previous_stock - quantity
-        movement = self._register_movement(
+        return self._register_movement(
             product,
             MovementTypes.EXIT,
             quantity,
@@ -172,7 +181,26 @@ class InventoryService:
             reason,
             reference_id,
             created_by,
+            reference_type=reference_type,
         )
+
+    def remove_stock(
+        self,
+        product_id: UUID,
+        quantity: int,
+        created_by: UUID,
+        reason: str | None = None,
+        reference_id: str | None = None,
+    ) -> InventoryMovement:
+        movement = self.apply_exit(
+            product_id=product_id,
+            quantity=quantity,
+            created_by=created_by,
+            reason=reason,
+            reference_id=reference_id,
+        )
+        product = self.db.get(Product, product_id)
+        assert product is not None
         return self._commit_and_refresh(product, movement)
 
     def adjust_stock(

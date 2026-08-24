@@ -12,6 +12,9 @@ import PurchasesPage from './pages/purchases/PurchasesPage';
 import PurchaseDetailPage from './pages/purchases/PurchaseDetailPage';
 import CustomersPage from './pages/customers/CustomersPage';
 import CustomerDetailPage from './pages/customers/CustomerDetailPage';
+import SalesPage from './pages/sales/SalesPage';
+import PointOfSalePage from './pages/sales/PointOfSalePage';
+import SaleDetailPage from './pages/sales/SaleDetailPage';
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { user, initializing } = useAuth();
@@ -51,6 +54,9 @@ function App() {
         <Route path="purchases/:id" element={<PurchaseDetailPage />} />
         <Route path={ROUTES.CUSTOMERS} element={<CustomersPage />} />
         <Route path={`${ROUTES.CUSTOMERS}/:id`} element={<CustomerDetailPage />} />
+        <Route path="ventas" element={<SalesPage />} />
+        <Route path="ventas/:id" element={<SaleDetailPage />} />
+        <Route path="pos" element={<PointOfSalePage />} />
       </Route>
       <Route path="*" element={<Navigate to={ROUTES.HOME} replace />} />
     </Routes>

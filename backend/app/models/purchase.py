@@ -30,9 +30,14 @@ VALID_PURCHASE_STATUSES = frozenset(
 
 
 class MovementReferences:
-    """Tipos de entidad que pueden referenciar movimientos de inventario."""
+    """Tipos de entidad que pueden referenciar movimientos de inventario.
+
+    reference_type + reference_id permiten trazar cada movimiento hasta su
+    documento origen (compra, venta, ajuste manual).
+    """
 
     PURCHASE = "PURCHASE"
+    SALE = "SALE"
 
 
 class Purchase(Base):

@@ -4,7 +4,7 @@ Sistema web profesional para la gestión integral de un supermercado, con módul
 
 ## Estado
 
-**Fase 1 — Fundamentos**, **Fase 2 — Autenticación, Usuarios y Roles**, **Fase 3 — Productos e Inventario**, **Fase 4 — Proveedores**, **Fase 5 — Compras y Abastecimiento** y **Fase 6 — Clientes y Cuentas por Cobrar** completadas.
+**Fase 1 — Fundamentos**, **Fase 2 — Autenticación, Usuarios y Roles**, **Fase 3 — Productos e Inventario**, **Fase 4 — Proveedores**, **Fase 5 — Compras y Abastecimiento**, **Fase 6 — Clientes y Cuentas por Cobrar** y **Fase 7 — Ventas y Facturación** completadas.
 
 ## Arquitectura
 
@@ -85,7 +85,7 @@ Nunca se usan credenciales fijas en el código; la contraseña se pide de forma 
 - Login vía `POST /api/auth/login` (formato OAuth2 form-urlencoded) → JWT bearer.
 - El JWT contiene únicamente `sub` (id del usuario) y `exp`.
 - Autorización RBAC en backend con permisos granulares (`users.read`, `sales.create`, ...).
-- Roles: `ADMIN` (todo), `CASHIER` (ventas, clientes, abonos de cuentas por cobrar, caja, lectura de catálogo/proveedores/compras), `INVENTORY_MANAGER` (productos, inventario, proveedores, compras, clientes, reportes).
+- Roles: `ADMIN` (todo), `CASHIER` (ventas y POS completos, clientes, abonos de cuentas por cobrar, caja, lectura de catálogo/proveedores/compras), `INVENTORY_MANAGER` (productos, inventario, proveedores, compras, clientes, lectura de ventas, reportes).
 
 ## Endpoints Disponibles
 
@@ -145,6 +145,15 @@ Nunca se usan credenciales fijas en el código; la contraseña se pide de forma 
 | POST | `/api/receivables` | Crear cuenta por cobrar manual (puente hasta ventas) | `receivables.create` |
 | POST | `/api/receivables/{id}/payments` | Registrar pago atómico e idempotente (`idempotency_key`) | `receivables.payment` |
 | POST | `/api/receivables/{id}/cancel` | Anular cuenta (write-off del saldo restante) | `receivables.cancel` |
+| GET | `/api/sales` | Listar ventas (filtros cliente/estado/fechas/número; `{items,total}`) | `sales.read` |
+| GET | `/api/sales/{id}` | Detalle de venta con ítems (snapshot histórico de precios) | `sales.read` |
+| POST | `/api/sales` | Crear venta en DRAFT (opcionalmente con ítems) | `sales.create` |
+| PATCH | `/api/sales/{id}` | Editar encabezado / cliente / pago (solo DRAFT) | `sales.update` |
+| DELETE | `/api/sales/{id}` | Cancelar venta (solo DRAFT; nunca físico) | `sales.cancel` |
+| POST | `/api/sales/{id}/confirm` | Confirmar venta → salida de stock transaccional; a crédito genera cuenta por cobrar | `sales.confirm` |
+| POST | `/api/sales/{id}/items` | Agregar ítem a venta DRAFT (precio snapshot opcional) | `sales.update` |
+| PATCH | `/api/sales/{id}/items/{item_id}` | Modificar ítem (solo DRAFT) | `sales.update` |
+| DELETE | `/api/sales/{id}/items/{item_id}` | Eliminar ítem (solo DRAFT) | `sales.update` |
 | GET | `/api/docs` | Documentación Swagger (dev) | — |
 
 ## Variables de Entorno

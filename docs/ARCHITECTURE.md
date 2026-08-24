@@ -878,12 +878,16 @@ VITE_API_URL=http://localhost:8000/api
 - [x] Tests: CRUD, ítems, cálculos Decimal, proveedor/producto inválido, confirmación,
       idempotencia, rollback transaccional, estados y RBAC
 
-### Fase 6 — Ventas y Facturación *(siguiente)*
-- [ ] Flujo de venta completo (carrito, totales, confirmación)
-- [ ] Transacciones de base de datos
-- [ ] Generación de facturas
-- [ ] Métodos de pago
-- [ ] Frontend: punto de venta
+### Fase 6 — Ventas y Facturación ✅
+> Ejecutada como "Fase 7 — Ventas y Facturación" (después de clientes, que
+> las ventas requieren para el crédito). Detalle en §21.5.
+
+- [x] Flujo de venta completo (carrito, totales, confirmación)
+- [x] Transacciones de base de datos
+- [x] Generación de facturas (factura interna: número/fecha/cajero/cliente/
+      ítems/totales/pago; integraciones fiscales externas fuera de alcance)
+- [x] Métodos de pago
+- [x] Frontend: punto de venta
 
 ### Fase 7 — Clientes y Créditos ✅
 > Ejecutada antes que ventas con el título "Fase 6 — Clientes y Cuentas por
@@ -1190,3 +1194,76 @@ Errores: 404 `CUSTOMER_NOT_FOUND` / `RECEIVABLE_NOT_FOUND`;
   reintento tras error de red jamás cobra dos veces.
 - Tipos en `types/customer.ts`; HTTP en `services/customers.ts` y
   `services/receivables.ts`.
+
+## 21.5 Notas de implementación de ventas y facturación (Fase 7)
+
+> Ejecutada después de clientes (plan-Fase 7) y antes de caja; corresponde al
+> plan-Fase 6 del documento original.
+
+### Modelo
+
+- `sales` + `sale_items` (migración `0006_sales`, reversible). Estados
+  `DRAFT → CONFIRMED | CANCELLED` con CHECKs; solo DRAFT es editable/cancelable
+  y CONFIRMED es inmutable (igual que compras).
+- Numeración `VTA-YYYY-NNNNNN` con `pg_advisory_xact_lock('sales_number')` +
+  reintento ante `IntegrityError` (patrón de compras).
+- Cliente opcional (venta anónima / consumidor final); obligatorio para
+  `CREDIT`. Métodos de pago: `CASH/CARD/TRANSFER/CREDIT` (CHECK extensible).
+- `unit_price` de cada ítem es **snapshot** histórico: cambiar
+  `Product.sale_price` nunca recalcula ventas pasadas.
+- Dinero siempre `Decimal`/NUMERIC (14,2 cabecera, 12,2 ítems), ROUND_HALF_UP.
+
+### Confirmación transaccional
+
+Único COMMIT por confirmación (`SaleService.confirm_sale`): bloqueo de fila
+(`SELECT ... FOR UPDATE`) → validaciones (productos activos, venta no vacía,
+idempotencia) → salidas de stock vía `InventoryService.apply_exit`
+(movimiento EXIT con `reference_type='SALE'`, `reference_id=sale.id`, sin
+commits intermedios) → normalización de pago → si CREDIT, creación de la
+cuenta por cobrar vía `ReceivableService.create_receivable_in_transaction`
+(núcleo sin commit reutilizado también por el método público) → estado
+CONFIRMED + timestamp. Cualquier fallo (stock insuficiente, cupo excedido)
+ejecuta ROLLBACK completo: ni stock ni saldo del cliente quedan tocados.
+
+### Pagos
+
+- CASH: sin registro de efectivo se asume pago exacto; con monto registrado,
+  exige `amount_paid ≥ total` (422 `PAYMENT_INSUFFICIENT`) y calcula vuelto.
+- CARD/TRANSFER: registran `amount_paid = total`, vuelto 0.
+- CREDIT: `amount_paid = 0`; exige cliente activo con crédito habilitado y
+  cupo suficiente (validado bajo lock por `CustomerCreditService`). El cobro
+  real ocurre cuando el cliente abone la cuenta generada.
+
+### API
+
+| Método | Ruta | Notas |
+|--------|------|-------|
+| GET | `/api/sales` | Filtros cliente/estado/fechas/número; `{items,total}` |
+| GET | `/api/sales/{id}` | Detalle con ítems (snapshot) |
+| POST | `/api/sales` | DRAFT con ítems opcionales; snapshot de precio automático |
+| PATCH | `/api/sales/{id}` | Encabezado/cliente/pago (solo DRAFT); valida pareja método-cliente |
+| DELETE | `/api/sales/{id}` | Cancelar (solo DRAFT) |
+| POST | `/api/sales/{id}/confirm` | Transacción completa descrita arriba |
+| POST/PATCH/DELETE | `/api/sales/{id}/items[/{item_id}]` | Carrito en DRAFT |
+
+Errores: 404 `SALE_NOT_FOUND` / `SALE_ITEM_NOT_FOUND` / `PRODUCT_NOT_FOUND` /
+`CUSTOMER_NOT_FOUND`; 409 `PRODUCT_INACTIVE`, `CUSTOMER_INACTIVE`,
+`CREDIT_NOT_ENABLED`, `CREDIT_LIMIT_EXCEEDED`, `SALE_ITEM_DUPLICATE_PRODUCT`,
+`SALE_ALREADY_CONFIRMED`, `SALE_ALREADY_CANCELLED`, `SALE_CANCELLED`,
+`SALE_NUMBER_GENERATION_FAILED`; 422 `SALE_EMPTY`, `PAYMENT_INSUFFICIENT`,
+`CUSTOMER_REQUIRED_FOR_CREDIT`, `DISCOUNT_EXCEEDS_SUBTOTAL`,
+`ITEM_DISCOUNT_EXCEEDS_SUBTOTAL`.
+
+### RBAC y frontend
+
+- Permisos nuevos: `sales.update/confirm/cancel` (+ existentes
+  `sales.read/create`). ADMIN todo; CASHIER opera el POS completo;
+  INVENTORY_MANAGER solo consulta historial.
+- Frontend: `/ventas` (historial con filtros), `/pos` (búsqueda por nombre o
+  código de barras, carrito con control de stock disponible, cliente opcional
+  con crédito visible, métodos de pago, vuelto estimado, cobro = crear +
+  confirmar) y `/ventas/:id` (comprobante con acciones según estado).
+- Tipos en `types/sale.ts`; HTTP en `services/sales.ts`.
+- Tests: 53 nuevos (`tests/test_sales.py`) cubriendo snapshot, carrito,
+  confirmación/movimientos, idempotencia, rollbacks (stock y crédito),
+  pagos, integración con cuentas por cobrar y RBAC.

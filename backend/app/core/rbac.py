@@ -33,6 +33,9 @@ class Permissions:
 
     SALES_READ = "sales.read"
     SALES_CREATE = "sales.create"
+    SALES_UPDATE = "sales.update"
+    SALES_CONFIRM = "sales.confirm"
+    SALES_CANCEL = "sales.cancel"
 
     CUSTOMERS_READ = "customers.read"
     CUSTOMERS_CREATE = "customers.create"
@@ -85,6 +88,9 @@ ALL_PERMISSIONS: dict[str, str] = {
     Permissions.INVENTORY_UPDATE: "Ajustar inventario",
     Permissions.SALES_READ: "Consultar ventas",
     Permissions.SALES_CREATE: "Registrar ventas",
+    Permissions.SALES_UPDATE: "Editar ventas",
+    Permissions.SALES_CONFIRM: "Confirmar ventas (cobrar)",
+    Permissions.SALES_CANCEL: "Cancelar ventas",
     Permissions.CUSTOMERS_READ: "Consultar clientes",
     Permissions.CUSTOMERS_CREATE: "Crear clientes",
     Permissions.CUSTOMERS_UPDATE: "Actualizar clientes",
@@ -122,6 +128,9 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
     Roles.CASHIER: _codes(
         Permissions.SALES_READ,
         Permissions.SALES_CREATE,
+        Permissions.SALES_UPDATE,
+        Permissions.SALES_CONFIRM,
+        Permissions.SALES_CANCEL,
         Permissions.CUSTOMERS_READ,
         Permissions.CUSTOMERS_CREATE,
         Permissions.CUSTOMERS_UPDATE,
@@ -161,6 +170,7 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         Permissions.PURCHASES_UPDATE,
         Permissions.PURCHASES_CONFIRM,
         Permissions.PURCHASES_CANCEL,
+        Permissions.SALES_READ,
         Permissions.CUSTOMERS_READ,
         Permissions.CUSTOMERS_CREATE,
         Permissions.CUSTOMERS_UPDATE,
