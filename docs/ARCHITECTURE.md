@@ -912,9 +912,12 @@ VITE_API_URL=http://localhost:8000/api
 - [x] Tests: 42 nuevos (crédito, pagos, idempotencia, anulación, statement, RBAC)
 
 ### Fase 8 — Caja
-- [ ] Apertura y cierre de caja
-- [ ] Movimientos de caja
-- [ ] Resumen de turno
+- [x] Apertura y cierre de caja
+- [x] Movimientos de caja
+- [x] Resumen de turno
+- [x] Integración automática: ventas y abonos generan movimientos de caja
+- [x] Frontend: `/caja` (apertura, resumen, movimientos, ingreso/egreso, cierre)
+- [x] Tests: 52 nuevos (`tests/test_cash.py`) + E2E HTTP (34 checks)
 
 ### Fase 9 — Reportes e IA
 - [ ] Reportes en PDF y Excel
@@ -1267,3 +1270,88 @@ Errores: 404 `SALE_NOT_FOUND` / `SALE_ITEM_NOT_FOUND` / `PRODUCT_NOT_FOUND` /
 - Tests: 53 nuevos (`tests/test_sales.py`) cubriendo snapshot, carrito,
   confirmación/movimientos, idempotencia, rollbacks (stock y crédito),
   pagos, integración con cuentas por cobrar y RBAC.
+
+## 21.6 Notas de implementación de caja y control de efectivo (Fase 8)
+
+> Ejecutada después de ventas (plan-Fase 8) como módulo transversal que
+> registra el flujo de efectivo generado por las fases anteriores.
+
+### Modelo
+
+- `cash_registers` + `cash_movements` (migración `0007_cash`, reversible).
+  Estados de caja `OPEN → CLOSED | CANCELLED` con CHECKs; montos
+  `Numeric(12..14,2)` siempre en `Decimal`.
+- **Un turno abierto por cajero:** índice parcial único sobre
+  `cash_registers(user_id) WHERE status = 'OPEN'`
+  (`sqlite_where` / `postgresql_where`). La carrera entre dos aperturas
+  simultáneas se resuelve con re-chequeo tras capturar `IntegrityError`.
+- Movimientos `OPENING | SALE | RECEIVABLE_PAYMENT | CASH_IN | CASH_OUT |
+  ADJUSTMENT` (ADJUSTMENT reservado, no expuesto por API). Montos positivos
+  (CHECK permite `amount = 0` solo para OPENING); medio de pago
+  `CASH/CARD/TRANSFER` opcional.
+- **Idempotencia por referencia:** índice parcial único
+  `(reference_type, reference_id) WHERE reference_id IS NOT NULL`; una venta o
+  un abono genera a lo sumo un movimiento aunque el hook se invoque dos veces.
+
+### Regla de efectivo centralizada
+
+Función única `cash_delta(type, method)` (fuente de verdad): OPENING/CASH_IN →
++1; CASH_OUT → −1; SALE y RECEIVABLE_PAYMENT → +1 solo si el medio es CASH;
+CARD/TRANSFER registran trazabilidad sin tocar el efectivo; ADJUSTMENT → 0.
+El efectivo esperado del turno es la suma de efectos; se recalcula con un
+agregado `GROUP BY (type, method)` portable (sin N+1).
+
+### Integración automática (backward-compatible)
+
+- `SaleService.confirm_sale` invoca
+  `CashService.record_sale_movement_in_transaction(...)` justo antes de su
+  COMMIT: si el confirmador tiene caja abierta queda trazado el movimiento
+  SALE; si no hay caja abierta (o la venta es CREDIT / total 0) es no-op sin
+  afectar la transacción de la venta.
+- `ReceivableService.register_payment` invoca
+  `record_receivable_payment_movement_in_transaction(...)` después de bajar el
+  saldo del cliente y antes del COMMIT; la clave de idempotencia del pago
+  garantiza que repetirlo no duplique el movimiento de caja.
+- Ningún hook hace commit propio: respetan la transacción del servicio origen.
+
+### Cierre
+
+Único COMMIT (`close_register`): bloqueo FOR UPDATE → validaciones de estado →
+cálculo del esperado → fijación de `expected_amount`, `counted_amount`,
+`difference`, `closed_at`, `closed_by_id` → estado CLOSED. La diferencia puede
+ser negativa (faltante), positiva (sobrante) o cero (cuadrado). Tras cerrar,
+la consulta "caja actual" devuelve null y el usuario puede abrir un nuevo
+turno; los montos del resumen de una caja cerrada quedan congelados.
+
+### API
+
+| Método | Ruta | Notas |
+|--------|------|-------|
+| GET | `/api/cash/registers/current` | Caja abierta del usuario (null si ninguna); resumen embebido |
+| POST | `/api/cash/registers/open` | 201; apertura única por usuario (409 REGISTER_ALREADY_OPEN) |
+| GET | `/api/cash/registers` | Historial con filtros user/status/fechas |
+| GET | `/api/cash/registers/{id}` | Detalle + resumen |
+| POST | `/api/cash/registers/{id}/close` | Cierra y congela esperado/contado/diferencia |
+| GET | `/api/cash/registers/{id}/movements` | Filtro opcional por tipo |
+| GET | `/api/cash/registers/{id}/summary` | Requiere `cash.report` (solo ADMIN) |
+| POST | `/api/cash/movements` | Solo CASH_IN/CASH_OUT con motivo ≥3 caracteres |
+
+Errores: 404 `REGISTER_NOT_FOUND`; 409 `REGISTER_ALREADY_OPEN`,
+`REGISTER_ALREADY_CLOSED`, `REGISTER_CANCELLED`, `REGISTER_NOT_OPEN`,
+`INSUFFICIENT_CASH` (egreso > efectivo disponible),
+`INVALID_REGISTER_STATUS`, `INVALID_MOVEMENT_TYPE`.
+
+### RBAC y frontend
+
+- Permisos existentes `cash.read/open/close/movements` (ADMIN + CASHIER);
+  nuevo `cash.report` solo ADMIN. INVENTORY_MANAGER no maneja efectivo (403
+  en todo el dominio caja). Seed idempotente crea el permiso nuevo.
+- Frontend `/caja`: estado sin-caja → formulario de apertura; dashboard con
+  tarjetas de resumen (apertura, ventas efectivo, abonos, ingresos, egresos,
+  medios electrónicos, esperado destacado), tabla de movimientos paginada,
+  modales de ingreso/egreso y cierre con vista previa de diferencia
+  (advertencias de faltante/sobrante) e historial de turnos cerrados.
+- Tipos en `types/cash.ts`; HTTP en `services/cash.ts`.
+- Tests: 52 nuevos (`tests/test_cash.py`) + guion E2E HTTP real
+  (33 checks: apertura→ventas→abonos→ingresos/egresos→cierre→historial,
+  más RBAC e idempotencia de replay) contra uvicorn con SQLite temporal.

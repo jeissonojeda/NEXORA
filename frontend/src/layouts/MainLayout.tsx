@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   { to: ROUTES.SALES, label: 'Ventas' },
   { to: ROUTES.POS, label: 'Nueva venta' },
   { to: ROUTES.CUSTOMERS, label: 'Clientes' },
+  { to: ROUTES.CASH, label: 'Caja' },
 ];
 
 function MainLayout() {
@@ -69,7 +70,7 @@ function MainLayout() {
         <Outlet />
       </main>
       <footer className="bg-white py-4 text-center text-sm text-gray-500">
-        Fase 7 — Ventas y Facturación
+        Fase 8 — Caja y Control de Efectivo
       </footer>
     </div>
   );

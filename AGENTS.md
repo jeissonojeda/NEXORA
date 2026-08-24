@@ -2,7 +2,7 @@
 
 ## Status
 
-Fase actual: Fase 7 (Ventas y Facturación) completada. Siguiente: Caja.
+Fase actual: Fase 8 (Caja y Control de Efectivo) completada. Siguiente: Reportes e IA.
 
 ## Project intent
 
@@ -18,10 +18,10 @@ Ver `docs/ARCHITECTURE.md` para la documentación completa.
 backend/app/
   core/         → config, security (JWT+bcrypt), rbac, dependencies, exceptions
   db/           → session, base, seed (roles/permisos)
-  models/       → SQLAlchemy entities (User, Role, Permission, Supplier, Category, Product, InventoryMovement, Purchase, PurchaseItem, Customer, ReceivableAccount, ReceivablePayment, Sale, SaleItem)
+  models/       → SQLAlchemy entities (User, Role, Permission, Supplier, Category, Product, InventoryMovement, Purchase, PurchaseItem, Customer, ReceivableAccount, ReceivablePayment, Sale, SaleItem, CashRegister, CashMovement)
   schemas/      → Pydantic validation
-  repositories/ → data access (CRUD base genérico + repos de catálogo/inventario/compras/clientes/cuentas/ventas)
-  services/     → business logic (aquí va la magia; InventoryService es el ÚNICO punto de cambio de stock; CustomerCreditService es el ÚNICO punto de cambio del saldo de clientes)
+  repositories/ → data access (CRUD base genérico + repos de catálogo/inventario/compras/clientes/cuentas/ventas/caja)
+  services/     → business logic (aquí va la magia; InventoryService es el ÚNICO punto de cambio de stock; CustomerCreditService es el ÚNICO punto de cambio del saldo de clientes; CashService es el ÚNICO punto que crea movimientos de caja y calcula efectivo esperado)
   api/routes/   → HTTP endpoints (sin lógica de negocio)
   cli.py        → python -m app.cli (seed-rbac, create-admin)
   ai/           → OpenAI integration
@@ -29,11 +29,11 @@ backend/app/
 
 frontend/src/
   components/   → ui/ (genéricos) + domain/ (específicos)
-  pages/        → una carpeta por módulo (auth, categories, suppliers, products, inventory, purchases, customers, sales)
-  services/     → Axios calls, una por dominio (api.ts + auth.ts + categories/suppliers/products/inventory/purchases/customers/receivables/sales)
+  pages/        → una carpeta por módulo (auth, categories, suppliers, products, inventory, purchases, customers, sales, cash)
+  services/     → Axios calls, una por dominio (api.ts + auth.ts + categories/suppliers/products/inventory/purchases/customers/receivables/sales/cash)
   contexts/     → AuthContext (sesión JWT restaurada desde localStorage)
   hooks/        → custom hooks (useAsync, useHealth)
-  types/        → interfaces TypeScript (+ auth.ts, catalog.ts, purchase.ts, customer.ts, sale.ts)
+  types/        → interfaces TypeScript (+ auth.ts, catalog.ts, purchase.ts, customer.ts, sale.ts, cash.ts)
 ```
 
 ## Development commands

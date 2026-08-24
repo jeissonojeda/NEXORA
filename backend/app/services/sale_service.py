@@ -21,6 +21,7 @@ from app.repositories.customer_repository import CustomerRepository
 from app.repositories.product_repository import ProductRepository
 from app.repositories.sale_repository import SaleRepository
 from app.services.customer_credit_service import money
+from app.services.cash_service import CashService
 from app.services.inventory_service import InventoryService
 from app.services.receivable_service import ReceivableService
 
@@ -568,6 +569,14 @@ class SaleService:
 
             sale.status = SaleStatuses.CONFIRMED
             sale.confirmed_at = datetime.now(timezone.utc)
+
+            # Caja: movimiento SALE (efectivo/tarjeta/transferencia) dentro
+            # de la misma transacción si el cajero tiene turno abierto;
+            # idempotente por UNIQUE(reference_type, reference_id).
+            CashService(self.db).record_sale_movement_in_transaction(
+                sale, user_id=confirmed_by
+            )
+
             self.db.commit()
         except Exception:
             self.db.rollback()

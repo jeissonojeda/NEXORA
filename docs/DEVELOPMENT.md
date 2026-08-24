@@ -219,6 +219,14 @@ El frontend estará disponible en: http://localhost:5173
 | PATCH/DELETE | `/api/sales/{id}` | Editar encabezado/cliente/pago (DRAFT) / cancelar (lógico) | `sales.update` / `sales.cancel` |
 | POST | `/api/sales/{id}/confirm` | Confirmar: salida de stock transaccional; crédito genera cuenta por cobrar | `sales.confirm` |
 | POST/PATCH/DELETE | `/api/sales/{id}/items[/{item_id}]` | Gestionar ítems del carrito (solo DRAFT) | `sales.update` |
+| GET | `/api/cash/registers/current` | Caja abierta del usuario actual (`null` si ninguna) | `cash.read` |
+| POST | `/api/cash/registers/open` | Abrir turno con monto inicial (único abierto por usuario) | `cash.open` |
+| GET | `/api/cash/registers?user_id=&status=&date_from=&date_to=` | Historial de cajas (`{items,total}`) | `cash.read` |
+| GET | `/api/cash/registers/{id}` | Detalle de caja + resumen embebido | `cash.read` |
+| POST | `/api/cash/registers/{id}/close` | Cerrar caja: fija esperado/contado/diferencia | `cash.close` |
+| GET | `/api/cash/registers/{id}/movements?movement_type=` | Movimientos del turno (paginado) | `cash.read` |
+| GET | `/api/cash/registers/{id}/summary` | Resumen detallado del turno | `cash.report` (solo ADMIN) |
+| POST | `/api/cash/movements` | Ingreso/egreso manual (`CASH_IN`/`CASH_OUT`, motivo ≥3) | `cash.movements` |
 
 ## Compras y Abastecimiento (Fase 5)
 
@@ -329,6 +337,56 @@ los roles (seed idempotente).
 Después de actualizar desde una versión anterior ejecutar
 `python -m app.cli seed-rbac` para crear los permisos nuevos
 `sales.update/confirm/cancel` y asignarlos a los roles (seed idempotente).
+
+## Caja y Control de Efectivo (Fase 8)
+
+### Reglas de negocio implementadas
+
+- **Ciclo del turno:** `OPEN → CLOSED` (o `CANCELLED`, reservado). Un cajero
+  tiene a lo sumo UNA caja abierta (índice parcial único
+  `user_id WHERE status='OPEN'`; doble apertura → 409
+  `REGISTER_ALREADY_OPEN`). Tras cerrar puede abrirse un turno nuevo.
+- **Apertura:** crea la caja y su movimiento `OPENING` en la MISMA
+  transacción; nunca existe caja abierta sin OPENING. Monto ≥ 0 (422).
+- **Cierre:** bloquea la fila (`SELECT ... FOR UPDATE`), calcula el efectivo
+  esperado desde los movimientos, guarda esperado/contado/diferencia,
+  `closed_at`, `closed_by_id` y pasa a CLOSED en un solo commit. Doble
+  cierre → 409. La diferencia puede ser negativa (faltante) o positiva
+  (sobrante); una caja cerrada queda con montos congelados.
+- **Movimientos:** `OPENING | SALE | RECEIVABLE_PAYMENT | CASH_IN |
+  CASH_OUT | ADJUSTMENT` (ADJUSTMENT reservado, no expuesto por API).
+  Append-only: nunca se editan ni eliminan.
+- **Regla de efectivo (`cash_delta`, única fuente de verdad):**
+  OPENING/CASH_IN suman, CASH_OUT resta; SALE y RECEIVABLE_PAYMENT suman
+  SOLO con medio CASH; CARD/TRANSFER se registran para trazabilidad pero
+  NO mueven el efectivo físico; venta CREDIT no genera movimiento (la
+  deuda vive en la cuenta por cobrar).
+- **Integración automática:** confirmar una venta o registrar un abono
+  crea el movimiento de caja dentro de la MISMA transacción del servicio
+  origen (sin commits propios). Sin caja abierta es no-op: la venta/pago
+  sigue siendo válido fuera de un turno.
+- **Idempotencia estructural:** índice único parcial
+  `(reference_type, reference_id)`: repetir la confirmación de una venta o
+  el replay de un pago jamás duplica movimientos.
+- **Ingresos/egresos manuales:** solo `CASH_IN`/`CASH_OUT`, monto > 0,
+  motivo obligatorio (≥3); CASH_OUT rechazado con 409 si deja el efectivo
+  en negativo.
+- **Dinero:** `Decimal`/`NUMERIC(14,2)`; JSON como string.
+
+### Frontend
+
+- Ruta `/caja` (visible para ADMIN/CASHIER): dashboard del turno (monto
+  inicial, ventas en efectivo, abonos recibidos, ingresos/egresos,
+  tarjeta/transferencia como "no efectivo", esperado destacado), tabla
+  paginada de movimientos e historial de turnos cerrados con su
+  diferencia.
+- Acciones: Abrir caja (monto inicial + notas), Registrar ingreso/egreso
+  (modal con motivo), Cerrar caja (muestra esperado, pide contado y
+  previsualiza la diferencia con advertencias claras de faltante/sobrante).
+
+Después de actualizar desde una versión anterior ejecutar
+`python -m app.cli seed-rbac` para crear el permiso nuevo `cash.report`
+y asignarlo a ADMIN (seed idempotente). Migración: `0007_cash`.
 
 ## Productos e Inventario (Fase 3)
 
@@ -562,6 +620,22 @@ Desviaciones menores respecto a `docs/ARCHITECTURE.md`, documentadas según las 
 | Movimientos | Nuevo campo `reference_type` (`'PURCHASE'`) + `reference_id` | Auditoría Compra → Movimiento → Stock |
 | Ruta frontend | `/purchases` (spec la pide así) | Igual que la spec; resto del proyecto usa español |
 | RBAC | CASHIER solo `purchases.read`; INVENTORY_MANAGER ciclo completo | El cajero consulta pero no gestiona abastecimiento |
+
+### Decisiones técnicas (Fase 8)
+
+| Tema | Decisión | Motivo |
+|------|----------|--------|
+| Un turno por cajero | Índice parcial único `user_id WHERE status='OPEN'` + re-chequeo tras IntegrityError | La BD es red de seguridad ante carreras; el servicio da un error claro (409) |
+| Regla de efectivo | Función única `cash_delta(type, method)` en `models/cash.py` | Una sola fuente de verdad para esperado; imposible divergencias entre cierre y resumen |
+| Medios electrónicos | CARD/TRANSFER registran movimiento sin tocar efectivo físico | Trazabilidad completa sin inflar el cajón; el esperado solo cuenta CASH |
+| Integración ventas/abonos | Hooks sin commit (`record_*_in_transaction`) invocados antes del COMMIT del servicio origen | Atomicidad: venta y movimiento nacen y mueren juntos; rollback total si algo falla |
+| Idempotencia | Índice único parcial `(reference_type, reference_id)` + chequeo previo | Reprocesos/reintentos nunca duplican efectivo; la BD respalda al servicio |
+| Venta CREDIT | No genera movimiento de caja | El cobro real se registra cuando el cliente abona (RECEIVABLE_PAYMENT) |
+| Vuelto de ventas CASH | En caja entra el TOTAL de la venta; el vuelto sale del cajón | El efectivo esperado refleja el flujo físico real del turno |
+| Cierre | FOR UPDATE + cálculo desde movimientos + fijación de montos en un commit | Doble cierre imposible; caja cerrada queda como comprobante inmutable |
+| Egresos | Rechazo 409 si dejan efectivo negativo | El cajón no puede quedar en negativo por operación manual |
+| ADJUSTMENT | Reservado en modelo/CHECK, no expuesto por API | Preparado para ajustes futuros de cierre sin migración nueva |
+| RBAC | Nuevo `cash.report` solo ADMIN; summary no embebido para CASHIER | Separación consulta-operación; el cajero ve su resumen vía detalle/current |
 
 ## Convenciones
 

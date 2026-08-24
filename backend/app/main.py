@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.routes.auth import router as auth_router
+from app.api.routes.cash import router as cash_router
 from app.api.routes.categories import router as categories_router
 from app.api.routes.customers import router as customers_router
 from app.api.routes.health import router as health_router
@@ -65,6 +66,7 @@ app.include_router(purchases_router, prefix="/api")
 app.include_router(customers_router, prefix="/api")
 app.include_router(receivables_router, prefix="/api")
 app.include_router(sales_router, prefix="/api")
+app.include_router(cash_router, prefix="/api")
 
 
 @app.exception_handler(AppError)

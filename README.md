@@ -4,7 +4,7 @@ Sistema web profesional para la gestión integral de un supermercado, con módul
 
 ## Estado
 
-**Fase 1 — Fundamentos**, **Fase 2 — Autenticación, Usuarios y Roles**, **Fase 3 — Productos e Inventario**, **Fase 4 — Proveedores**, **Fase 5 — Compras y Abastecimiento**, **Fase 6 — Clientes y Cuentas por Cobrar** y **Fase 7 — Ventas y Facturación** completadas.
+**Fase 1 — Fundamentos**, **Fase 2 — Autenticación, Usuarios y Roles**, **Fase 3 — Productos e Inventario**, **Fase 4 — Proveedores**, **Fase 5 — Compras y Abastecimiento**, **Fase 6 — Clientes y Cuentas por Cobrar**, **Fase 7 — Ventas y Facturación** y **Fase 8 — Caja y Control de Efectivo** completadas.
 
 ## Arquitectura
 
@@ -154,6 +154,14 @@ Nunca se usan credenciales fijas en el código; la contraseña se pide de forma 
 | POST | `/api/sales/{id}/items` | Agregar ítem a venta DRAFT (precio snapshot opcional) | `sales.update` |
 | PATCH | `/api/sales/{id}/items/{item_id}` | Modificar ítem (solo DRAFT) | `sales.update` |
 | DELETE | `/api/sales/{id}/items/{item_id}` | Eliminar ítem (solo DRAFT) | `sales.update` |
+| GET | `/api/cash/registers/current` | Caja abierta del usuario actual (`null` si ninguna) | `cash.read` |
+| POST | `/api/cash/registers/open` | Abrir turno de caja con monto inicial (único abierto por usuario) | `cash.open` |
+| GET | `/api/cash/registers` | Historial de cajas (filtros usuario/estado/fechas) | `cash.read` |
+| GET | `/api/cash/registers/{id}` | Detalle de caja + resumen embebido del turno | `cash.read` |
+| POST | `/api/cash/registers/{id}/close` | Cerrar caja: fija esperado/contado/diferencia | `cash.close` |
+| GET | `/api/cash/registers/{id}/movements` | Movimientos del turno (filtro por tipo) | `cash.movements` |
+| GET | `/api/cash/registers/{id}/summary` | Resumen detallado del turno | `cash.report` |
+| POST | `/api/cash/movements` | Ingreso/egreso manual con motivo obligatorio | `cash.movements` |
 | GET | `/api/docs` | Documentación Swagger (dev) | — |
 
 ## Variables de Entorno

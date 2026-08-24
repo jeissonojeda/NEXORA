@@ -1,4 +1,17 @@
 ﻿from app.models.category import Category
+from app.models.cash import (
+    CASH_INFLOW_TYPES,
+    CASH_OUTFLOW_TYPES,
+    METHOD_DEPENDENT_TYPES,
+    CashMovement,
+    CashReferenceTypes,
+    CashRegister,
+    MovementTypes,
+    RegisterStatuses,
+    VALID_MOVEMENT_TYPES,
+    VALID_REGISTER_STATUSES,
+    cash_delta,
+)
 from app.models.customer import (
     Customer,
     PaymentMethods,
@@ -58,4 +71,15 @@ __all__ = [
     "SalePaymentMethods",
     "VALID_SALE_PAYMENT_METHODS",
     "FULL_PAYMENT_METHODS",
+    "CashRegister",
+    "CashMovement",
+    "RegisterStatuses",
+    "VALID_REGISTER_STATUSES",
+    "MovementTypes",
+    "VALID_MOVEMENT_TYPES",
+    "CashReferenceTypes",
+    "CASH_INFLOW_TYPES",
+    "CASH_OUTFLOW_TYPES",
+    "METHOD_DEPENDENT_TYPES",
+    "cash_delta",
 ]

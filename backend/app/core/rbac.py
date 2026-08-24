@@ -62,6 +62,7 @@ class Permissions:
     CASH_OPEN = "cash.open"
     CASH_CLOSE = "cash.close"
     CASH_MOVEMENTS = "cash.movements"
+    CASH_REPORT = "cash.report"
 
     REPORTS_READ = "reports.read"
     REPORTS_EXPORT = "reports.export"
@@ -112,6 +113,7 @@ ALL_PERMISSIONS: dict[str, str] = {
     Permissions.CASH_OPEN: "Abrir caja",
     Permissions.CASH_CLOSE: "Cerrar caja",
     Permissions.CASH_MOVEMENTS: "Registrar movimientos de caja",
+    Permissions.CASH_REPORT: "Consultar reportes de caja",
     Permissions.REPORTS_READ: "Consultar reportes",
     Permissions.REPORTS_EXPORT: "Exportar reportes",
     Permissions.AI_READ: "Consultar análisis de IA",
@@ -176,5 +178,6 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         Permissions.CUSTOMERS_UPDATE,
         Permissions.REPORTS_READ,
         Permissions.REPORTS_EXPORT,
+        # Sin permisos de caja: el rol de inventario no maneja efectivo.
     ),
 }

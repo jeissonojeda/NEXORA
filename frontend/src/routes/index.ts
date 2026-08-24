@@ -9,6 +9,7 @@ export const ROUTES = {
   CUSTOMERS: '/clientes',
   SALES: '/ventas',
   POS: '/pos',
+  CASH: '/caja',
 } as const;
 
 export type RoutePath = (typeof ROUTES)[keyof typeof ROUTES];

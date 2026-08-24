@@ -19,6 +19,7 @@ from app.repositories.receivable_repository import (
     ReceivableRepository,
 )
 from app.services.customer_credit_service import CustomerCreditService, money
+from app.services.cash_service import CashService
 
 VALID_REFERENCES = {"MANUAL", "SALE"}
 
@@ -307,6 +308,12 @@ class ReceivableService:
             )
 
             self.credit.decrease_balance(customer, payment_amount)
+
+            # Caja: movimiento RECEIVABLE_PAYMENT en la MISMA transacción
+            # (atómico con el pago); idempotente por referencia al pago.
+            CashService(self.db).record_receivable_payment_movement_in_transaction(
+                payment, account, user_id=created_by
+            )
 
             self.db.commit()
         except IntegrityError:
