@@ -15,8 +15,17 @@ const NAV_ITEMS = [
   { to: ROUTES.CASH, label: 'Caja' },
 ];
 
+const REPORT_ACCESS_ROLES = ['ADMIN', 'INVENTORY_MANAGER'];
+
 function MainLayout() {
   const { user, logout } = useAuth();
+  const canSeeReports =
+    user?.roles.some((role) => REPORT_ACCESS_ROLES.includes(role.name)) ??
+    false;
+
+  const navItems = canSeeReports
+    ? [...NAV_ITEMS, { to: ROUTES.REPORTS, label: 'Reportes' }]
+    : NAV_ITEMS;
 
   return (
     <div className="flex min-h-screen flex-col bg-gray-100">
@@ -47,7 +56,7 @@ function MainLayout() {
             )}
           </div>
           <nav className="-mb-px flex gap-4 overflow-x-auto" aria-label="Principal">
-            {NAV_ITEMS.map((item) => (
+            {navItems.map((item) => (
               <NavLink
                 key={item.to}
                 to={item.to}
@@ -70,7 +79,7 @@ function MainLayout() {
         <Outlet />
       </main>
       <footer className="bg-white py-4 text-center text-sm text-gray-500">
-        Fase 8 — Caja y Control de Efectivo
+        Fase 9 — Reportes y Exportación
       </footer>
     </div>
   );

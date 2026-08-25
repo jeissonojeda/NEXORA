@@ -388,6 +388,43 @@ Después de actualizar desde una versión anterior ejecutar
 `python -m app.cli seed-rbac` para crear el permiso nuevo `cash.report`
 y asignarlo a ADMIN (seed idempotente). Migración: `0007_cash`.
 
+## Reportes y Exportación (Fase 9)
+
+### Reglas de negocio implementadas
+
+- **9 reportes** en JSON (vista previa) y PDF/Excel: ventas, productos
+  vendidos, inventario valorizado, stock bajo, compras, caja, clientes con
+  crédito, cuentas por cobrar y utilidades.
+- **Endpoints:** `GET /api/reports/{tipo}` (`reports.read`) y
+  `GET /api/reports/{tipo}/export?format=pdf|excel` (`reports.export`);
+  permisos ya existentes en el seed (ADMIN + INVENTORY_MANAGER; CASHIER →
+  403). No requiere migración ni `seed-rbac` adicional.
+- **Totales globales:** calculados en SQL sobre TODAS las filas del filtro;
+  `skip`/`limit` solo recortan la página JSON. La exportación ignora la
+  paginación e incluye todo.
+- **Solo lectura:** el repositorio de reportes nunca muta estado; las
+  consultas usan agregados (`SUM`/`CASE`/`GROUP BY`) y joins puntuales.
+- **Utilidades aproximadas:** costo = cantidad vendida × precio de compra
+  ACTUAL del producto (los ítems no guardan snapshot del costo); nota
+  explicativa incluida en los documentos. Agrupación DAY/MONTH (default
+  MONTH) sobre la fecha efectiva de venta.
+- **Validación por reporte:** cada tipo declara sus filtros válidos; usar un
+  filtro ajeno → 422 `INVALID_FILTER_FOR_REPORT`; valor inválido de enum →
+  422 `INVALID_FILTER_VALUE`; rango invertido → 422 `INVALID_DATE_RANGE`;
+  formato desconocido → 422 `INVALID_EXPORT_FORMAT`; tipo inexistente →
+  404 `REPORT_NOT_FOUND`.
+- **Archivos:** PDF vía `reportlab`, Excel vía `openpyxl`; descarga como
+  binario con `Content-Disposition: attachment;
+  filename="reporte-{tipo}-{AAAAMMDD}-{HHMM}.{pdf|xlsx}"`.
+
+### Frontend
+
+- Ruta `/reportes` (nav visible solo para ADMIN/INVENTORY_MANAGER):
+  selector de tipo, filtros dinámicos según el reporte (vendedor/cajero solo
+  para ADMIN), tabla genérica generada desde `columns`, fila TOTALES,
+  paginación y botones "Exportar PDF / Excel" que descargan el blob
+  respetando el filename del header.
+
 ## Productos e Inventario (Fase 3)
 
 ### Reglas de negocio implementadas

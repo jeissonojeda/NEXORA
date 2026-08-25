@@ -2,7 +2,7 @@
 
 ## Status
 
-Fase actual: Fase 8 (Caja y Control de Efectivo) completada. Siguiente: Reportes e IA.
+Fase actual: Fase 9 (Reportes y Exportación) completada. Siguiente: IA (integración OpenAI, análisis, recomendaciones).
 
 ## Project intent
 
@@ -29,11 +29,11 @@ backend/app/
 
 frontend/src/
   components/   → ui/ (genéricos) + domain/ (específicos)
-  pages/        → una carpeta por módulo (auth, categories, suppliers, products, inventory, purchases, customers, sales, cash)
-  services/     → Axios calls, una por dominio (api.ts + auth.ts + categories/suppliers/products/inventory/purchases/customers/receivables/sales/cash)
+  pages/        → una carpeta por módulo (auth, categories, suppliers, products, inventory, purchases, customers, sales, cash, reports)
+  services/     → Axios calls, una por dominio (api.ts + auth.ts + categories/suppliers/products/inventory/purchases/customers/receivables/sales/cash/reports)
   contexts/     → AuthContext (sesión JWT restaurada desde localStorage)
   hooks/        → custom hooks (useAsync, useHealth)
-  types/        → interfaces TypeScript (+ auth.ts, catalog.ts, purchase.ts, customer.ts, sale.ts, cash.ts)
+  types/        → interfaces TypeScript (+ auth.ts, catalog.ts, purchase.ts, customer.ts, sale.ts, cash.ts, report.ts)
 ```
 
 ## Development commands

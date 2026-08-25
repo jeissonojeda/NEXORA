@@ -4,7 +4,7 @@ Sistema web profesional para la gestión integral de un supermercado, con módul
 
 ## Estado
 
-**Fase 1 — Fundamentos**, **Fase 2 — Autenticación, Usuarios y Roles**, **Fase 3 — Productos e Inventario**, **Fase 4 — Proveedores**, **Fase 5 — Compras y Abastecimiento**, **Fase 6 — Clientes y Cuentas por Cobrar**, **Fase 7 — Ventas y Facturación** y **Fase 8 — Caja y Control de Efectivo** completadas.
+**Fase 1 — Fundamentos**, **Fase 2 — Autenticación, Usuarios y Roles**, **Fase 3 — Productos e Inventario**, **Fase 4 — Proveedores**, **Fase 5 — Compras y Abastecimiento**, **Fase 6 — Clientes y Cuentas por Cobrar**, **Fase 7 — Ventas y Facturación**, **Fase 8 — Caja y Control de Efectivo** y **Fase 9 — Reportes y Exportación** completadas.
 
 ## Arquitectura
 
@@ -26,7 +26,7 @@ Documentación completa: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 
 **IA:** OpenAI API (futuro)
 
-**Reportes:** PDF (reportlab/weasyprint), Excel (openpyxl) (futuro)
+**Reportes:** PDF (reportlab), Excel (openpyxl)
 
 ## Instalación Rápida
 
@@ -162,6 +162,8 @@ Nunca se usan credenciales fijas en el código; la contraseña se pide de forma 
 | GET | `/api/cash/registers/{id}/movements` | Movimientos del turno (filtro por tipo) | `cash.movements` |
 | GET | `/api/cash/registers/{id}/summary` | Resumen detallado del turno | `cash.report` |
 | POST | `/api/cash/movements` | Ingreso/egreso manual con motivo obligatorio | `cash.movements` |
+| GET | `/api/reports/{tipo}` | Datos de reporte en JSON (9 tipos; filtros + paginación + totales) | `reports.read` |
+| GET | `/api/reports/{tipo}/export` | Exportar reporte a PDF o Excel (`?format=pdf\|excel`; ignora paginación) | `reports.export` |
 | GET | `/api/docs` | Documentación Swagger (dev) | — |
 
 ## Variables de Entorno

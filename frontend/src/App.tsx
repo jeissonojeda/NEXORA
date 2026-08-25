@@ -16,6 +16,7 @@ import SalesPage from './pages/sales/SalesPage';
 import PointOfSalePage from './pages/sales/PointOfSalePage';
 import SaleDetailPage from './pages/sales/SaleDetailPage';
 import CashPage from './pages/cash/CashPage';
+import ReportsPage from './pages/reports/ReportsPage';
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { user, initializing } = useAuth();
@@ -59,6 +60,7 @@ function App() {
         <Route path="ventas/:id" element={<SaleDetailPage />} />
             <Route path="pos" element={<PointOfSalePage />} />
             <Route path={ROUTES.CASH} element={<CashPage />} />
+            <Route path={ROUTES.REPORTS} element={<ReportsPage />} />
       </Route>
       <Route path="*" element={<Navigate to={ROUTES.HOME} replace />} />
     </Routes>

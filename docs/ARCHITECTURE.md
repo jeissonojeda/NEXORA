@@ -533,6 +533,9 @@ Si cualquier paso falla, se revierte toda la transacción.
 
 ## 13. Sistema de Reportes
 
+> Implementado en la Fase 9 (ver §21.7 para el detalle vigente). Esta sección
+> conserva el diseño original.
+
 ### Tipos de reporte
 
 | Reporte | Filtros | Formatos |
@@ -543,13 +546,14 @@ Si cualquier paso falla, se revierte toda la transacción.
 | Stock bajo | categoría | PDF, Excel |
 | Compras | fecha, proveedor | PDF, Excel |
 | Caja | fecha, cajero | PDF, Excel |
-| Clientes | fecha, cliente | PDF, Excel |
-| Utilidades | fecha, período | PDF, Excel |
+| Clientes con crédito | búsqueda, fechas | PDF, Excel |
+| Cuentas por cobrar | cliente, estado, fechas | PDF, Excel |
+| Utilidades | fecha, período (día/mes) | PDF, Excel |
 
 ### Generación
 
 - Backend genera el archivo y lo retorna como respuesta binaria.
-- PDF: `reportlab` o `weasyprint`.
+- PDF: `reportlab`.
 - Excel: `openpyxl`.
 - Headers de descarga: `Content-Disposition: attachment; filename="reporte.pdf"`.
 
@@ -920,7 +924,7 @@ VITE_API_URL=http://localhost:8000/api
 - [x] Tests: 52 nuevos (`tests/test_cash.py`) + E2E HTTP (34 checks)
 
 ### Fase 9 — Reportes e IA
-- [ ] Reportes en PDF y Excel
+- [x] Reportes en PDF y Excel (implementada; IA queda para la siguiente fase)
 - [ ] Integración OpenAI
 - [ ] Análisis de ventas, predicción de demanda, recomendaciones
 - [ ] Dashboard y módulo IA
@@ -1355,3 +1359,82 @@ Errores: 404 `REGISTER_NOT_FOUND`; 409 `REGISTER_ALREADY_OPEN`,
 - Tests: 52 nuevos (`tests/test_cash.py`) + guion E2E HTTP real
   (33 checks: apertura→ventas→abonos→ingresos/egresos→cierre→historial,
   más RBAC e idempotencia de replay) contra uvicorn con SQLite temporal.
+
+## 21.7 Notas de implementación de reportes y exportación (Fase 9)
+
+> Módulo de solo lectura: no agrega tablas ni migraciones; consulta los datos
+> generados por las fases anteriores a través de un repositorio dedicado.
+
+### Alcance
+
+Nueve reportes (`sales`, `products-sold`, `inventory`, `low-stock`,
+`purchases`, `cash-registers`, `customers-credit`, `receivables`,
+`utilities`) disponibles como JSON (vista previa) y como archivo PDF/Excel.
+El módulo de IA queda pendiente para la siguiente fase.
+
+### Arquitectura
+
+- `repositories/report_repository.py`: único acceso a datos del dominio;
+  consultas agregadas SQL (SUM/CASE/GROUP BY) que **nunca** mutan estado.
+- `services/report_service.py`: lógica de negocio — registro de tipos de
+  reporte (`REPORT_DEFINITIONS`), validación de filtros aplicables por tipo,
+  construcción de columnas/filas/totales y delegación a los renderizadores.
+- `reports/pdf.py` / `reports/excel.py`: render puro (reportlab /
+  openpyxl); reciben título, encabezados, filas, totales, filtros aplicados,
+  notas y nombre de archivo sugerido. Sin lógica de negocio.
+- `api/routes/reports.py`: dos endpoints sin lógica:
+  `GET /api/reports/{tipo}` (`reports.read`) y
+  `GET /api/reports/{tipo}/export?format=pdf|excel` (`reports.export`).
+- Esquema de respuesta genérico (`ReportDataResponse`): `report_type`,
+  `title`, `generated_at`, `filters_applied`, `columns`
+  (`{key,label,type}` con tipo `text|money|int|datetime|date`), `items`
+  (filas como diccionarios), paginación `skip/limit/total` y `totals`.
+
+### Reglas de negocio
+
+- **Totales sobre el conjunto completo:** los totales se calculan en SQL
+  sobre TODAS las filas del filtro; la paginación (`skip`/`limit`) solo
+  recorta la página mostrada. Las exportaciones ignoran la paginación e
+  incluyen todas las filas.
+- **Ventas/compras confirmadas:** `sales`, `products-sold` y `utilities`
+  excluyen borradores/canceladas (estado CONFIRMED). Compras incluye
+  DRAFT/CONFIRMED/CANCELLED filtrable por estado.
+- **Utilidades = aproximación:** `utilidad = ingresos − cantidad_vendida ×
+  precio_de_compra_ACTUAL_del_producto`; los ítems de venta no guardan
+  snapshot del costo, por lo que el resultado es estimado si el costo cambió
+  después de vender. Agrupación por día o mes (default mensual) usando la
+  fecha efectiva de venta (`COALESCE(confirmed_at, created_at)`). El reporte
+  incluye una nota visible explicando la aproximación.
+- **Clientes con crédito:** solo clientes `credit_enabled=True`;
+  `current_balance` es el saldo corriente del cliente y
+  `receivable_balance` suma cuentas OPEN/PARTIALLY_PAID.
+- **Inventario valorizado:** valor a costo (`stock × purchase_price`) y a
+  precio de venta (`stock × sale_price`); filtro por categoría y estado
+  activo/inactivo. Stock bajo lista productos activos con
+  `stock ≤ minimum_stock` ordenados por faltante descendente.
+
+### Validaciones y errores
+
+- Tipo de reporte inexistente → 404 `REPORT_NOT_FOUND`.
+- Filtro no aplicable al reporte → 422 `INVALID_FILTER_FOR_REPORT`.
+- Valor inválido para un enum (método de pago, estados, período) →
+  422 `INVALID_FILTER_VALUE`.
+- `date_from > date_to` → 422 `INVALID_DATE_RANGE`.
+- Formato de exportación distinto de pdf/excel → 422 `INVALID_EXPORT_FORMAT`.
+
+### RBAC y frontend
+
+- Permisos ya existentes en el seed: `reports.read` y `reports.export`
+  (ADMIN + INVENTORY_MANAGER). CASHIER obtiene 403 en ambos endpoints;
+  el nav "Reportes" se oculta según roles.
+- Frontend `/reportes`: selector de tipo, formularios de filtro dinámicos
+  por reporte (el filtro de vendedor/cajero solo aparece para ADMIN porque
+  listar usuarios requiere `users.read`), tabla genérica construida desde
+  `columns` con fila TOTALES y paginación, botones de exportación que
+  descargan el blob respetando el filename de `Content-Disposition`.
+- Tipos en `types/report.ts`; HTTP en `services/reports.ts`.
+- Tests: 57 nuevos (`tests/test_reports.py`): RBAC, validaciones, filas y
+  totales de los 9 reportes, filtros, paginación, reportes vacíos y
+  exportación real (magic bytes `%PDF`/`PK`, content-types, nombres
+  `reporte-{tipo}-{fecha}-{hora}.pdf|xlsx`, introspección del xlsx vía
+  openpyxl, exportación completa ignora límite de página).

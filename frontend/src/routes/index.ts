@@ -10,6 +10,7 @@ export const ROUTES = {
   SALES: '/ventas',
   POS: '/pos',
   CASH: '/caja',
+  REPORTS: '/reportes',
 } as const;
 
 export type RoutePath = (typeof ROUTES)[keyof typeof ROUTES];

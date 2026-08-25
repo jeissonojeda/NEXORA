@@ -16,6 +16,7 @@ from app.api.routes.inventory import router as inventory_router
 from app.api.routes.products import router as products_router
 from app.api.routes.purchases import router as purchases_router
 from app.api.routes.receivables import router as receivables_router
+from app.api.routes.reports import router as reports_router
 from app.api.routes.sales import router as sales_router
 from app.api.routes.suppliers import router as suppliers_router
 from app.api.routes.users import router as users_router
@@ -67,6 +68,7 @@ app.include_router(customers_router, prefix="/api")
 app.include_router(receivables_router, prefix="/api")
 app.include_router(sales_router, prefix="/api")
 app.include_router(cash_router, prefix="/api")
+app.include_router(reports_router, prefix="/api")
 
 
 @app.exception_handler(AppError)
