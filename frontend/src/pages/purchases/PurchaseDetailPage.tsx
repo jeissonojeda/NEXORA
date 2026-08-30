@@ -19,12 +19,11 @@ import Badge from '../../components/ui/Badge';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import EmptyState from '../../components/ui/EmptyState';
 import ErrorAlert from '../../components/ui/ErrorAlert';
+import LoadingState from '../../components/ui/LoadingState';
 import Modal from '../../components/ui/Modal';
+import PageHeader from '../../components/ui/PageHeader';
+import Icon from '../../components/ui/Icon';
 import { formatCurrency, formatDateTime } from '../../utils/format';
-
-const inputClass =
-  'block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none';
-const labelClass = 'block text-sm font-medium text-gray-700';
 
 const STATUS_TONE: Record<PurchaseStatus, 'gray' | 'green' | 'red'> = {
   DRAFT: 'gray',
@@ -92,14 +91,25 @@ export default function PurchaseDetailPage() {
   );
 
   if (purchaseState.loading) {
-    return <p className="py-10 text-center text-sm text-gray-500">Cargando compra…</p>;
+    return (
+      <div className="mx-auto max-w-2xl p-5">
+        <LoadingState rows={6} />
+      </div>
+    );
   }
   if (!purchase) {
     return (
-      <EmptyState
-        title="Compra no encontrada"
-        hint="La compra solicitada no existe o fue eliminada."
-      />
+      <div className="animate-fade-in space-y-5">
+        <PageHeader
+          title="Compra no encontrada"
+          subtitle="La compra solicitada no existe o fue eliminada."
+        />
+        <EmptyState
+          title="Compra no encontrada"
+          hint="La compra solicitada no existe o fue eliminada."
+          icon="receipt"
+        />
+      </div>
     );
   }
 
@@ -225,51 +235,52 @@ export default function PurchaseDetailPage() {
   const hasItems = items.length > 0;
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
+    <div className="animate-fade-in space-y-5">
+      <PageHeader
+        title={purchase.purchase_number}
+        subtitle={
           <Link
             to="/purchases"
-            className="text-sm font-medium text-blue-600 hover:text-blue-800"
+            className="inline-flex items-center gap-1 font-medium text-primary hover:brightness-75"
           >
-            ← Volver a compras
+            <Icon name="chevron-left" size={16} />
+            Volver a compras
           </Link>
-          <h2 className="mt-1 font-mono text-xl font-bold text-gray-900">
-            {purchase.purchase_number}
-          </h2>
-        </div>
-        <Badge tone={STATUS_TONE[purchase.status]}>
-          {purchaseStatusLabel(purchase.status)}
-        </Badge>
-      </div>
+        }
+        actions={
+          <Badge tone={STATUS_TONE[purchase.status]}>
+            {purchaseStatusLabel(purchase.status)}
+          </Badge>
+        }
+      />
 
       {actionError && <ErrorAlert message={actionError} />}
 
       {/* Encabezado */}
-      <div className="grid grid-cols-1 gap-4 rounded-lg bg-white p-4 shadow md:grid-cols-2">
+      <div className="nx-card grid grid-cols-1 gap-4 p-4 md:grid-cols-2">
         <dl className="space-y-2 text-sm">
           <div className="flex justify-between gap-4">
-            <dt className="text-gray-500">Proveedor</dt>
-            <dd className="font-medium text-gray-900">{purchase.supplier.name}</dd>
+            <dt className="text-muted">Proveedor</dt>
+            <dd className="font-medium text-foreground">{purchase.supplier.name}</dd>
           </div>
           <div className="flex justify-between gap-4">
-            <dt className="text-gray-500">Fecha de creación</dt>
-            <dd className="text-gray-800">{formatDateTime(purchase.created_at)}</dd>
+            <dt className="text-muted">Fecha de creación</dt>
+            <dd className="text-foreground">{formatDateTime(purchase.created_at)}</dd>
           </div>
           <div className="flex justify-between gap-4">
-            <dt className="text-gray-500">Creada por</dt>
-            <dd className="text-gray-800">{purchase.created_by_username ?? '—'}</dd>
+            <dt className="text-muted">Creada por</dt>
+            <dd className="text-foreground">{purchase.created_by_username ?? '—'}</dd>
           </div>
           <div className="flex justify-between gap-4">
-            <dt className="text-gray-500">Confirmada</dt>
-            <dd className="text-gray-800">
+            <dt className="text-muted">Confirmada</dt>
+            <dd className="text-foreground">
               {purchase.confirmed_at ? formatDateTime(purchase.confirmed_at) : '—'}
             </dd>
           </div>
           {!headerEditing && (
             <div className="flex justify-between gap-4">
-              <dt className="text-gray-500">Notas</dt>
-              <dd className="max-w-[60%] text-right text-gray-800">
+              <dt className="text-muted">Notas</dt>
+              <dd className="max-w-[60%] text-right text-foreground">
                 {purchase.notes || '—'}
               </dd>
             </div>
@@ -277,26 +288,26 @@ export default function PurchaseDetailPage() {
         </dl>
 
         {/* Totales */}
-        <div className="rounded-md bg-gray-50 p-4 text-sm">
+        <div className="rounded-lg bg-surface-2 p-4 text-sm">
           <div className="flex justify-between py-1">
-            <span className="text-gray-500">Subtotal</span>
-            <span className="font-medium text-gray-900">
+            <span className="text-muted">Subtotal</span>
+            <span className="font-medium text-foreground">
               {formatCurrency(purchase.subtotal)}
             </span>
           </div>
           <div className="flex justify-between py-1">
-            <span className="text-gray-500">Descuento</span>
-            <span className="text-gray-900">
+            <span className="text-muted">Descuento</span>
+            <span className="text-foreground">
               −{formatCurrency(purchase.discount)}
             </span>
           </div>
           <div className="flex justify-between py-1">
-            <span className="text-gray-500">Impuesto</span>
-            <span className="text-gray-900">+{formatCurrency(purchase.tax)}</span>
+            <span className="text-muted">Impuesto</span>
+            <span className="text-foreground">+{formatCurrency(purchase.tax)}</span>
           </div>
-          <div className="mt-2 flex justify-between border-t border-gray-200 pt-2">
-            <span className="font-semibold text-gray-700">Total</span>
-            <span className="text-lg font-bold text-gray-900">
+          <div className="mt-2 flex justify-between border-t border-line pt-2">
+            <span className="font-semibold text-foreground">Total</span>
+            <span className="text-lg font-bold text-foreground">
               {formatCurrency(purchase.total)}
             </span>
           </div>
@@ -304,7 +315,7 @@ export default function PurchaseDetailPage() {
             <button
               type="button"
               onClick={openHeaderEdit}
-              className="mt-3 text-xs font-medium text-blue-600 hover:text-blue-800"
+              className="mt-3 text-xs font-medium text-primary hover:brightness-75"
             >
               Editar descuento / impuesto / notas
             </button>
@@ -312,29 +323,29 @@ export default function PurchaseDetailPage() {
           {headerEditing && (
             <div className="mt-3 space-y-2">
               <div>
-                <label htmlFor="header-discount" className={labelClass}>
+                <label htmlFor="header-discount" className="nx-label">
                   Descuento
                 </label>
                 <input
                   id="header-discount"
                   value={headerDiscount}
                   onChange={(event) => setHeaderDiscount(event.target.value)}
-                  className={`mt-1 ${inputClass}`}
+                  className="nx-input"
                 />
               </div>
               <div>
-                <label htmlFor="header-tax" className={labelClass}>
+                <label htmlFor="header-tax" className="nx-label">
                   Impuesto
                 </label>
                 <input
                   id="header-tax"
                   value={headerTax}
                   onChange={(event) => setHeaderTax(event.target.value)}
-                  className={`mt-1 ${inputClass}`}
+                  className="nx-input"
                 />
               </div>
               <div>
-                <label htmlFor="header-notes" className={labelClass}>
+                <label htmlFor="header-notes" className="nx-label">
                   Notas
                 </label>
                 <textarea
@@ -342,14 +353,14 @@ export default function PurchaseDetailPage() {
                   rows={2}
                   value={headerNotes}
                   onChange={(event) => setHeaderNotes(event.target.value)}
-                  className={`mt-1 ${inputClass}`}
+                  className="nx-input"
                 />
               </div>
               <div className="flex justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setHeaderEditing(false)}
-                  className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                  className="nx-btn nx-btn-sm nx-btn-secondary"
                   disabled={busy}
                 >
                   Cancelar
@@ -357,7 +368,7 @@ export default function PurchaseDetailPage() {
                 <button
                   type="button"
                   onClick={() => void submitHeader()}
-                  className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+                  className="nx-btn nx-btn-sm nx-btn-primary disabled:opacity-60"
                   disabled={busy}
                 >
                   Guardar
@@ -370,15 +381,16 @@ export default function PurchaseDetailPage() {
 
       {/* Acciones de estado */}
       {editable && (
-        <div className="flex flex-wrap gap-2 rounded-lg bg-white p-4 shadow">
+        <div className="nx-card flex flex-wrap gap-2 p-4">
           <button
             type="button"
             onClick={() => {
               setActionError(null);
               setConfirmOpen(true);
             }}
-            className="rounded-md bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700"
+            className="nx-btn nx-btn-success"
           >
+            <Icon name="check" size={16} />
             Confirmar compra
           </button>
           <button
@@ -387,26 +399,28 @@ export default function PurchaseDetailPage() {
               setActionError(null);
               setCancelOpen(true);
             }}
-            className="rounded-md border border-red-300 px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50"
+            className="nx-btn nx-btn-danger"
           >
+            <Icon name="x-circle" size={16} />
             Cancelar compra
           </button>
         </div>
       )}
 
       {/* Ítems */}
-      <div className="overflow-hidden rounded-lg bg-white shadow">
-        <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
-          <h3 className="text-sm font-semibold text-gray-900">
+      <div className="nx-card overflow-hidden">
+        <div className="flex items-center justify-between border-b border-line px-4 py-3">
+          <h3 className="text-sm font-semibold text-foreground">
             Productos ({items.length})
           </h3>
           {editable && (
             <button
               type="button"
               onClick={openAddItem}
-              className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
+              className="nx-btn nx-btn-primary"
             >
-              + Agregar producto
+              <Icon name="plus" size={16} />
+              Agregar producto
             </button>
           )}
         </div>
@@ -414,76 +428,75 @@ export default function PurchaseDetailPage() {
           <EmptyState
             title="Sin productos"
             hint="Agregue productos a la compra para poder confirmarla."
+            icon="package"
           />
         ) : (
-          <table className="min-w-full divide-y divide-gray-200 text-sm">
-            <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
-              <tr>
-                <th className="px-4 py-3 text-left font-semibold text-gray-600">Producto</th>
-                <th className="px-4 py-3 text-right font-semibold text-gray-600">Cantidad</th>
-                <th className="px-4 py-3 text-right font-semibold text-gray-600">Costo</th>
-                <th className="hidden px-4 py-3 text-right font-semibold text-gray-600 sm:table-cell">
-                  Descuento
-                </th>
-                <th className="hidden px-4 py-3 text-right font-semibold text-gray-600 sm:table-cell">
-                  Impuesto
-                </th>
-                <th className="px-4 py-3 text-right font-semibold text-gray-600">Subtotal</th>
-                <th className="px-4 py-3 text-right font-semibold text-gray-600">Total</th>
-                {editable && (
-                  <th className="px-4 py-3 text-right font-semibold text-gray-600">
-                    Acciones
-                  </th>
-                )}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {items.map((item) => (
-                <tr key={item.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 font-medium text-gray-900">
-                    {item.product_name ?? '—'}
-                  </td>
-                  <td className="px-4 py-3 text-right text-gray-800">{item.quantity}</td>
-                  <td className="px-4 py-3 text-right text-gray-800">
-                    {formatCurrency(item.unit_cost)}
-                  </td>
-                  <td className="hidden px-4 py-3 text-right text-gray-800 sm:table-cell">
-                    {formatCurrency(item.discount)}
-                  </td>
-                  <td className="hidden px-4 py-3 text-right text-gray-800 sm:table-cell">
-                    {formatCurrency(item.tax)}
-                  </td>
-                  <td className="px-4 py-3 text-right text-gray-800">
-                    {formatCurrency(item.subtotal)}
-                  </td>
-                  <td className="px-4 py-3 text-right font-medium text-gray-900">
-                    {formatCurrency(item.total)}
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="nx-table">
+              <thead>
+                <tr>
+                  <th>Producto</th>
+                  <th className="text-right">Cantidad</th>
+                  <th className="text-right">Costo</th>
+                  <th className="hidden text-right sm:table-cell">Descuento</th>
+                  <th className="hidden text-right sm:table-cell">Impuesto</th>
+                  <th className="text-right">Subtotal</th>
+                  <th className="text-right">Total</th>
                   {editable && (
-                    <td className="whitespace-nowrap px-4 py-3 text-right">
-                      <button
-                        type="button"
-                        onClick={() => openEditItem(item)}
-                        className="mr-2 text-sm font-medium text-blue-600 hover:text-blue-800"
-                      >
-                        Editar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setActionError(null);
-                          setRemovingItem(item);
-                        }}
-                        className="text-sm font-medium text-red-600 hover:text-red-800"
-                      >
-                        Eliminar
-                      </button>
-                    </td>
+                    <th className="text-right">Acciones</th>
                   )}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {items.map((item) => (
+                  <tr key={item.id}>
+                    <td className="font-medium text-foreground">
+                      {item.product_name ?? '—'}
+                    </td>
+                    <td className="text-right text-foreground">{item.quantity}</td>
+                    <td className="text-right text-foreground">
+                      {formatCurrency(item.unit_cost)}
+                    </td>
+                    <td className="hidden text-right text-foreground sm:table-cell">
+                      {formatCurrency(item.discount)}
+                    </td>
+                    <td className="hidden text-right text-foreground sm:table-cell">
+                      {formatCurrency(item.tax)}
+                    </td>
+                    <td className="text-right text-foreground">
+                      {formatCurrency(item.subtotal)}
+                    </td>
+                    <td className="text-right font-medium text-foreground">
+                      {formatCurrency(item.total)}
+                    </td>
+                    {editable && (
+                      <td className="whitespace-nowrap text-right">
+                        <button
+                          type="button"
+                          onClick={() => openEditItem(item)}
+                          className="nx-btn nx-btn-sm nx-btn-ghost text-primary"
+                        >
+                          <Icon name="pencil" size={14} />
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActionError(null);
+                            setRemovingItem(item);
+                          }}
+                          className="nx-btn nx-btn-sm nx-btn-ghost text-red-600 dark:text-red-400"
+                        >
+                          <Icon name="trash" size={14} />
+                          Eliminar
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
@@ -496,14 +509,14 @@ export default function PurchaseDetailPage() {
         <div className="space-y-3">
           {!editingItem && (
             <div>
-              <label htmlFor="item-product" className={labelClass}>
+              <label htmlFor="item-product" className="nx-label">
                 Producto *
               </label>
               <select
                 id="item-product"
                 value={itemForm.productId}
                 onChange={(event) => handleProductSelected(event.target.value)}
-                className={`mt-1 ${inputClass}`}
+                className="nx-select"
               >
                 <option value="">Seleccione…</option>
                 {productsState.data?.items.map((product: ApiProduct) => (
@@ -517,7 +530,7 @@ export default function PurchaseDetailPage() {
           )}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label htmlFor="item-quantity" className={labelClass}>
+              <label htmlFor="item-quantity" className="nx-label">
                 Cantidad *
               </label>
               <input
@@ -527,11 +540,11 @@ export default function PurchaseDetailPage() {
                 step={1}
                 value={itemForm.quantity}
                 onChange={(event) => setField('quantity', event.target.value)}
-                className={`mt-1 ${inputClass}`}
+                className="nx-input"
               />
             </div>
             <div>
-              <label htmlFor="item-cost" className={labelClass}>
+              <label htmlFor="item-cost" className="nx-label">
                 Costo unitario *
               </label>
               <input
@@ -541,11 +554,11 @@ export default function PurchaseDetailPage() {
                 step="0.01"
                 value={itemForm.unitCost}
                 onChange={(event) => setField('unitCost', event.target.value)}
-                className={`mt-1 ${inputClass}`}
+                className="nx-input"
               />
             </div>
             <div>
-              <label htmlFor="item-discount" className={labelClass}>
+              <label htmlFor="item-discount" className="nx-label">
                 Descuento
               </label>
               <input
@@ -555,11 +568,11 @@ export default function PurchaseDetailPage() {
                 step="0.01"
                 value={itemForm.discount}
                 onChange={(event) => setField('discount', event.target.value)}
-                className={`mt-1 ${inputClass}`}
+                className="nx-input"
               />
             </div>
             <div>
-              <label htmlFor="item-tax" className={labelClass}>
+              <label htmlFor="item-tax" className="nx-label">
                 Impuesto
               </label>
               <input
@@ -569,12 +582,12 @@ export default function PurchaseDetailPage() {
                 step="0.01"
                 value={itemForm.tax}
                 onChange={(event) => setField('tax', event.target.value)}
-                className={`mt-1 ${inputClass}`}
+                className="nx-input"
               />
             </div>
           </div>
           {itemError && (
-            <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            <p className="rounded-md border border-red-300 bg-red-100/60 px-3 py-2 text-sm text-red-800 dark:bg-red-500/10 dark:text-red-300">
               {itemError}
             </p>
           )}
@@ -582,7 +595,7 @@ export default function PurchaseDetailPage() {
             <button
               type="button"
               onClick={() => setItemModalOpen(false)}
-              className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              className="nx-btn nx-btn-secondary"
               disabled={busy}
             >
               Cancelar
@@ -591,7 +604,7 @@ export default function PurchaseDetailPage() {
               type="button"
               onClick={() => void submitItem()}
               disabled={busy}
-              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+              className="nx-btn nx-btn-primary disabled:opacity-60"
             >
               {busy ? 'Guardando…' : editingItem ? 'Guardar cambios' : 'Agregar'}
             </button>

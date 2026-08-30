@@ -17,12 +17,12 @@ import Badge from '../../components/ui/Badge';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import EmptyState from '../../components/ui/EmptyState';
 import ErrorAlert from '../../components/ui/ErrorAlert';
+import LoadingState from '../../components/ui/LoadingState';
 import Modal from '../../components/ui/Modal';
 import Pagination from '../../components/ui/Pagination';
+import PageHeader from '../../components/ui/PageHeader';
+import Icon from '../../components/ui/Icon';
 import { formatCurrency, formatDateTime } from '../../utils/format';
-
-const inputClass =
-  'block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none';
 
 const PAGE_SIZE = 10;
 
@@ -123,29 +123,33 @@ export default function PurchasesPage() {
   const total = purchasesState.data?.total ?? 0;
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-xl font-bold text-gray-900">Compras</h2>
-        {canWrite && (
-          <button
-            type="button"
-            onClick={() => {
-              setNewSupplierId('');
-              setNewNotes('');
-              setFormError(null);
-              setCreateOpen(true);
-            }}
-            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
-          >
-            + Nueva compra
-          </button>
-        )}
-      </div>
+    <div className="animate-fade-in space-y-5">
+      <PageHeader
+        title="Compras"
+        subtitle="Gestiona las compras a tus proveedores."
+        actions={
+          canWrite && (
+            <button
+              type="button"
+              onClick={() => {
+                setNewSupplierId('');
+                setNewNotes('');
+                setFormError(null);
+                setCreateOpen(true);
+              }}
+              className="nx-btn nx-btn-primary"
+            >
+              <Icon name="plus" size={16} />
+              Nueva compra
+            </button>
+          )
+        }
+      />
 
       {/* Filtros */}
-      <div className="grid grid-cols-1 gap-3 rounded-lg bg-white p-4 shadow sm:grid-cols-2 lg:grid-cols-5">
+      <div className="nx-card grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 lg:grid-cols-4">
         <div>
-          <label htmlFor="purchase-status" className="block text-xs font-medium text-gray-500">
+          <label htmlFor="purchase-status" className="nx-label">
             Estado
           </label>
           <select
@@ -154,7 +158,7 @@ export default function PurchasesPage() {
             onChange={changeFilter((value) =>
               setStatusFilter(value as '' | PurchaseStatus),
             )}
-            className={`mt-1 ${inputClass}`}
+            className="nx-select"
           >
             <option value="">Todos</option>
             <option value="DRAFT">Borrador</option>
@@ -163,14 +167,14 @@ export default function PurchasesPage() {
           </select>
         </div>
         <div>
-          <label htmlFor="purchase-supplier" className="block text-xs font-medium text-gray-500">
+          <label htmlFor="purchase-supplier" className="nx-label">
             Proveedor
           </label>
           <select
             id="purchase-supplier"
             value={supplierFilter}
             onChange={changeFilter((value) => setSupplierFilter(value))}
-            className={`mt-1 ${inputClass}`}
+            className="nx-select"
           >
             <option value="">Todos</option>
             {suppliersState.data?.items.map((supplier) => (
@@ -181,7 +185,7 @@ export default function PurchasesPage() {
           </select>
         </div>
         <div>
-          <label htmlFor="purchase-from" className="block text-xs font-medium text-gray-500">
+          <label htmlFor="purchase-from" className="nx-label">
             Fecha inicial
           </label>
           <input
@@ -189,11 +193,11 @@ export default function PurchasesPage() {
             type="date"
             value={dateFrom}
             onChange={changeFilter((value) => setDateFrom(value))}
-            className={`mt-1 ${inputClass}`}
+            className="nx-input"
           />
         </div>
         <div>
-          <label htmlFor="purchase-to" className="block text-xs font-medium text-gray-500">
+          <label htmlFor="purchase-to" className="nx-label">
             Fecha final
           </label>
           <input
@@ -201,7 +205,7 @@ export default function PurchasesPage() {
             type="date"
             value={dateTo}
             onChange={changeFilter((value) => setDateTo(value))}
-            className={`mt-1 ${inputClass}`}
+            className="nx-input"
           />
         </div>
       </div>
@@ -209,68 +213,72 @@ export default function PurchasesPage() {
       {purchasesState.error && <ErrorAlert message={purchasesState.error} />}
 
       {/* Tabla */}
-      <div className="overflow-hidden rounded-lg bg-white shadow">
+      <div className="nx-card overflow-hidden">
         {purchasesState.loading ? (
-          <p className="px-4 py-10 text-center text-sm text-gray-500">Cargando compras…</p>
+          <div className="p-5">
+            <LoadingState rows={6} />
+          </div>
         ) : total === 0 ? (
-          <EmptyState title="Sin compras" hint="Aún no hay compras registradas." />
+          <EmptyState title="Sin compras" hint="Aún no hay compras registradas." icon="cart" />
         ) : (
           <>
-            <table className="min-w-full divide-y divide-gray-200 text-sm">
-              <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
-                <tr>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-600">Número</th>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-600">Proveedor</th>
-                  <th className="hidden px-4 py-3 text-left font-semibold text-gray-600 md:table-cell">
-                    Fecha
-                  </th>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-600">Estado</th>
-                  <th className="px-4 py-3 text-right font-semibold text-gray-600">Total</th>
-                  <th className="px-4 py-3 text-right font-semibold text-gray-600">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {purchasesState.data?.items.map((purchase) => (
-                  <tr key={purchase.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-mono text-xs font-medium text-gray-900">
-                      {purchase.purchase_number}
-                    </td>
-                    <td className="px-4 py-3 text-gray-800">{purchase.supplier.name}</td>
-                    <td className="hidden px-4 py-3 text-gray-600 md:table-cell">
-                      {formatDateTime(purchase.created_at)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <Badge tone={STATUS_TONE[purchase.status]}>
-                        {purchaseStatusLabel(purchase.status)}
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-3 text-right font-medium text-gray-900">
-                      {formatCurrency(purchase.total)}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-right">
-                      <Link
-                        to={`/purchases/${purchase.id}`}
-                        className="mr-2 text-sm font-medium text-blue-600 hover:text-blue-800"
-                      >
-                        Ver
-                      </Link>
-                      {canWrite && purchase.status === 'DRAFT' && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setCancelError(null);
-                            setCancelling(purchase);
-                          }}
-                          className="text-sm font-medium text-red-600 hover:text-red-800"
-                        >
-                          Cancelar
-                        </button>
-                      )}
-                    </td>
+            <div className="overflow-x-auto">
+              <table className="nx-table">
+                <thead>
+                  <tr>
+                    <th>Número</th>
+                    <th>Proveedor</th>
+                    <th className="hidden md:table-cell">Fecha</th>
+                    <th>Estado</th>
+                    <th className="text-right">Total</th>
+                    <th className="text-right">Acciones</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {purchasesState.data?.items.map((purchase) => (
+                    <tr key={purchase.id}>
+                      <td className="font-mono text-xs font-medium text-foreground">
+                        {purchase.purchase_number}
+                      </td>
+                      <td className="text-foreground">{purchase.supplier.name}</td>
+                      <td className="hidden text-muted md:table-cell">
+                        {formatDateTime(purchase.created_at)}
+                      </td>
+                      <td>
+                        <Badge tone={STATUS_TONE[purchase.status]}>
+                          {purchaseStatusLabel(purchase.status)}
+                        </Badge>
+                      </td>
+                      <td className="text-right font-medium text-foreground">
+                        {formatCurrency(purchase.total)}
+                      </td>
+                      <td className="whitespace-nowrap text-right">
+                        <Link
+                          to={`/purchases/${purchase.id}`}
+                          className="nx-btn nx-btn-sm nx-btn-ghost text-primary"
+                        >
+                          <Icon name="eye" size={14} />
+                          Ver
+                        </Link>
+                        {canWrite && purchase.status === 'DRAFT' && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCancelError(null);
+                              setCancelling(purchase);
+                            }}
+                            className="nx-btn nx-btn-sm nx-btn-ghost text-red-600 dark:text-red-400"
+                          >
+                            <Icon name="trash" size={14} />
+                            Cancelar
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
             <Pagination
               page={page}
               pageSize={PAGE_SIZE}
@@ -289,14 +297,14 @@ export default function PurchasesPage() {
       >
         <div className="space-y-4">
           <div>
-            <label htmlFor="draft-supplier" className="block text-sm font-medium text-gray-700">
+            <label htmlFor="draft-supplier" className="nx-label">
               Proveedor *
             </label>
             <select
               id="draft-supplier"
               value={newSupplierId}
               onChange={(event) => setNewSupplierId(event.target.value)}
-              className={`mt-1 ${inputClass}`}
+              className="nx-select"
             >
               <option value="">Seleccione…</option>
               {suppliersState.data?.items
@@ -309,7 +317,7 @@ export default function PurchasesPage() {
             </select>
           </div>
           <div>
-            <label htmlFor="draft-notes" className="block text-sm font-medium text-gray-700">
+            <label htmlFor="draft-notes" className="nx-label">
               Notas
             </label>
             <textarea
@@ -317,11 +325,11 @@ export default function PurchasesPage() {
               rows={2}
               value={newNotes}
               onChange={(event) => setNewNotes(event.target.value)}
-              className={`mt-1 ${inputClass}`}
+              className="nx-input"
             />
           </div>
           {formError && (
-            <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            <p className="rounded-md border border-red-300 bg-red-100/60 px-3 py-2 text-sm text-red-800 dark:bg-red-500/10 dark:text-red-300">
               {formError}
             </p>
           )}
@@ -329,7 +337,7 @@ export default function PurchasesPage() {
             <button
               type="button"
               onClick={() => setCreateOpen(false)}
-              className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              className="nx-btn nx-btn-secondary"
               disabled={busy}
             >
               Cancelar
@@ -338,7 +346,7 @@ export default function PurchasesPage() {
               type="button"
               onClick={() => void handleCreateDraft()}
               disabled={busy}
-              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+              className="nx-btn nx-btn-primary disabled:opacity-60"
             >
               {busy ? 'Guardando…' : 'Guardar borrador'}
             </button>

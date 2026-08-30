@@ -15,11 +15,11 @@ import Badge from '../../components/ui/Badge';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import EmptyState from '../../components/ui/EmptyState';
 import ErrorAlert from '../../components/ui/ErrorAlert';
+import LoadingState from '../../components/ui/LoadingState';
 import Modal from '../../components/ui/Modal';
 import Pagination from '../../components/ui/Pagination';
-
-const inputClass =
-  'block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none';
+import PageHeader from '../../components/ui/PageHeader';
+import Icon from '../../components/ui/Icon';
 
 const PAGE_SIZE = 10;
 
@@ -95,6 +95,21 @@ export default function SuppliersPage() {
     }
   }
 
+  async function toggleSupplierStatus() {
+    if (!editing) return;
+    setBusy(true);
+    setFormError(null);
+    try {
+      await updateSupplier(editing.id, { is_active: !editing.is_active });
+      setEditing({ ...editing, is_active: !editing.is_active });
+      await suppliersState.reload();
+    } catch (err) {
+      setFormError(extractErrorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function confirmDeactivate() {
     if (!deactivating) return;
     setBusy(true);
@@ -113,47 +128,56 @@ export default function SuppliersPage() {
   const total = suppliersState.data?.total ?? 0;
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-xl font-bold text-gray-900">Proveedores</h2>
-        {canWrite && (
-          <button
-            type="button"
-            onClick={() => {
-              setEditing(null);
-              setFormError(null);
-              setFormOpen(true);
-            }}
-            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
-          >
-            + Nuevo proveedor
-          </button>
-        )}
-      </div>
+    <div className="animate-fade-in space-y-5">
+      <PageHeader
+        title="Proveedores"
+        subtitle="Administra tus proveedores, contactos y datos de facturación."
+        actions={
+          canWrite && (
+            <button
+              type="button"
+              onClick={() => {
+                setEditing(null);
+                setFormError(null);
+                setFormOpen(true);
+              }}
+              className="nx-btn nx-btn-primary"
+            >
+              <Icon name="plus" size={16} />
+              Nuevo proveedor
+            </button>
+          )
+        }
+      />
 
       {/* Filtros */}
-      <div className="grid grid-cols-1 gap-3 rounded-lg bg-white p-4 shadow sm:grid-cols-2 lg:grid-cols-4">
+      <div className="nx-card grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="sm:col-span-2 lg:col-span-3">
-          <label htmlFor="supplier-search" className="block text-xs font-medium text-gray-500">
+          <label htmlFor="supplier-search" className="nx-label">
             Buscar por nombre, identificación, email o teléfono
           </label>
-          <input
-            id="supplier-search"
-            value={searchInput}
-            onChange={(event) => setSearchInput(event.target.value)}
-            placeholder="Ej. Distribuidora, 3101234, ventas@… , 8888-"
-            className={`mt-1 ${inputClass}`}
-          />
+          <div className="relative">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint">
+              <Icon name="search" size={16} />
+            </span>
+            <input
+              id="supplier-search"
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+              placeholder="Ej. Distribuidora, 3101234, ventas@… , 8888-"
+              className="nx-input pl-9"
+            />
+          </div>
         </div>
         <div>
-          <label htmlFor="supplier-status" className="block text-xs font-medium text-gray-500">
+          <label htmlFor="supplier-status" className="nx-label">
             Estado
           </label>
           <select
             id="supplier-status"
             value={statusFilter}
             onChange={(event) => changeStatus(event.target.value)}
-            className={`mt-1 ${inputClass}`}
+            className="nx-select"
           >
             <option value="all">Todos</option>
             <option value="active">Activos</option>
@@ -169,106 +193,106 @@ export default function SuppliersPage() {
         }
       />
 
-      <div className="overflow-hidden rounded-lg bg-white shadow">
+      <div className="nx-card overflow-hidden">
         {suppliersState.loading ? (
-          <p className="px-4 py-10 text-center text-sm text-gray-500">Cargando…</p>
+          <div className="p-5">
+            <LoadingState rows={6} />
+          </div>
         ) : total === 0 ? (
           <EmptyState
             title="Sin proveedores"
             hint="Ajusta la búsqueda o crea el primer proveedor."
+            icon="truck"
           />
         ) : (
           <>
-            <table className="min-w-full divide-y divide-gray-200 text-sm">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-600">Nombre</th>
-                  <th className="hidden px-4 py-3 text-left font-semibold text-gray-600 md:table-cell">
-                    Identificación
-                  </th>
-                  <th className="hidden px-4 py-3 text-left font-semibold text-gray-600 md:table-cell">
-                    Contacto / Teléfono
-                  </th>
-                  <th className="hidden px-4 py-3 text-left font-semibold text-gray-600 lg:table-cell">
-                    Email
-                  </th>
-                  <th className="hidden px-4 py-3 text-left font-semibold text-gray-600 sm:table-cell">
-                    Ciudad
-                  </th>
-                  <th className="px-4 py-3 text-right font-semibold text-gray-600">Productos</th>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-600">Estado</th>
-                  <th className="px-4 py-3 text-right font-semibold text-gray-600">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {suppliersState.data?.items.map((supplier) => (
-                  <tr key={supplier.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-medium text-gray-900">{supplier.name}</td>
-                    <td className="hidden px-4 py-3 font-mono text-xs text-gray-500 md:table-cell">
-                      {supplier.identification || '—'}
-                    </td>
-                    <td className="hidden px-4 py-3 text-gray-600 md:table-cell">
-                      {supplier.contact_name || '—'}
-                      {supplier.phone && (
-                        <span className="ml-1 text-xs text-gray-400">· {supplier.phone}</span>
-                      )}
-                    </td>
-                    <td className="hidden max-w-[180px] truncate px-4 py-3 text-gray-600 lg:table-cell">
-                      {supplier.email || '—'}
-                    </td>
-                    <td className="hidden px-4 py-3 text-gray-600 sm:table-cell">
-                      {supplier.city || '—'}
-                    </td>
-                    <td className="px-4 py-3 text-right text-gray-800">
-                      {supplier.products_count}
-                    </td>
-                    <td className="px-4 py-3">
-                      {supplier.is_active ? (
-                        <Badge tone="green">Activo</Badge>
-                      ) : (
-                        <Badge tone="red">Inactivo</Badge>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-right whitespace-nowrap">
-                      <button
-                        type="button"
-                        onClick={() => void openDetail(supplier)}
-                        className="mr-2 text-sm font-medium text-gray-600 hover:text-gray-800"
-                      >
-                        Ver
-                      </button>
-                      {canWrite && (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditing(supplier);
-                              setFormError(null);
-                              setFormOpen(true);
-                            }}
-                            className="mr-2 text-sm font-medium text-blue-600 hover:text-blue-800"
-                          >
-                            Editar
-                          </button>
-                          {supplier.is_active && (
+            <div className="overflow-x-auto">
+              <table className="nx-table">
+                <thead>
+                  <tr>
+                    <th>Nombre</th>
+                    <th className="hidden md:table-cell">Identificación</th>
+                    <th className="hidden md:table-cell">Contacto / Teléfono</th>
+                    <th className="hidden lg:table-cell">Email</th>
+                    <th className="hidden sm:table-cell">Ciudad</th>
+                    <th className="text-right">Productos</th>
+                    <th>Estado</th>
+                    <th className="text-right">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {suppliersState.data?.items.map((supplier) => (
+                    <tr key={supplier.id}>
+                      <td className="font-medium text-foreground">{supplier.name}</td>
+                      <td className="hidden font-mono text-xs text-muted md:table-cell">
+                        {supplier.identification || '—'}
+                      </td>
+                      <td className="hidden text-muted md:table-cell">
+                        {supplier.contact_name || '—'}
+                        {supplier.phone && (
+                          <span className="ml-1 text-xs text-faint">· {supplier.phone}</span>
+                        )}
+                      </td>
+                      <td className="hidden max-w-[180px] truncate text-muted lg:table-cell">
+                        {supplier.email || '—'}
+                      </td>
+                      <td className="hidden text-muted sm:table-cell">
+                        {supplier.city || '—'}
+                      </td>
+                      <td className="text-right text-foreground">
+                        {supplier.products_count}
+                      </td>
+                      <td>
+                        {supplier.is_active ? (
+                          <Badge tone="green">Activo</Badge>
+                        ) : (
+                          <Badge tone="red">Inactivo</Badge>
+                        )}
+                      </td>
+                      <td className="whitespace-nowrap text-right">
+                        <button
+                          type="button"
+                          onClick={() => void openDetail(supplier)}
+                          className="nx-btn nx-btn-sm nx-btn-ghost text-primary"
+                        >
+                          <Icon name="eye" size={14} />
+                          Ver
+                        </button>
+                        {canWrite && (
+                          <>
                             <button
                               type="button"
                               onClick={() => {
-                                setDeactivateError(null);
-                                setDeactivating(supplier);
+                                setEditing(supplier);
+                                setFormError(null);
+                                setFormOpen(true);
                               }}
-                              className="text-sm font-medium text-red-600 hover:text-red-800"
+                              className="nx-btn nx-btn-sm nx-btn-ghost text-primary"
                             >
-                              Desactivar
+                              <Icon name="pencil" size={14} />
+                              Editar
                             </button>
-                          )}
-                        </>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                            {supplier.is_active && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setDeactivateError(null);
+                                  setDeactivating(supplier);
+                                }}
+                                className="nx-btn nx-btn-sm nx-btn-ghost text-red-600 dark:text-red-400"
+                              >
+                                <Icon name="trash" size={14} />
+                                Desactivar
+                              </button>
+                            )}
+                          </>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
             <Pagination
               page={page}
               pageSize={PAGE_SIZE}
@@ -289,17 +313,13 @@ export default function SuppliersPage() {
         }}
       >
         {editing && canWrite && (
-          <div className="mb-4 flex items-center justify-between rounded-md bg-gray-50 px-3 py-2 text-sm">
-            <span>Estado actual:</span>
+          <div className="mb-4 flex items-center justify-between rounded-lg bg-surface-2 px-3 py-2 text-sm">
+            <span className="text-muted">Estado actual:</span>
             <button
               type="button"
               disabled={busy}
-              onClick={() =>
-                void updateSupplier(editing.id, { is_active: !editing.is_active }).then(
-                  () => suppliersState.reload(),
-                )
-              }
-              className="font-medium text-blue-600 hover:text-blue-800"
+              onClick={() => void toggleSupplierStatus()}
+              className="font-medium text-primary hover:brightness-75"
             >
               {editing.is_active ? 'Desactivar' : 'Activar'}
             </button>

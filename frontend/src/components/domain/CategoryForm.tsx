@@ -34,7 +34,7 @@ export default function CategoryForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label htmlFor="category-name" className="block text-sm font-medium text-gray-700">
+        <label htmlFor="category-name" className="nx-label">
           Nombre <span className="text-red-500">*</span>
         </label>
         <input
@@ -42,16 +42,13 @@ export default function CategoryForm({
           value={name}
           onChange={(event) => setName(event.target.value)}
           maxLength={80}
-          className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+          className="nx-input"
           placeholder="Ej. Lácteos"
         />
         <InlineError message={fieldError} />
       </div>
       <div>
-        <label
-          htmlFor="category-description"
-          className="block text-sm font-medium text-gray-700"
-        >
+        <label htmlFor="category-description" className="nx-label">
           Descripción
         </label>
         <textarea
@@ -60,21 +57,17 @@ export default function CategoryForm({
           onChange={(event) => setDescription(event.target.value)}
           rows={3}
           maxLength={255}
-          className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+          className="nx-textarea"
           placeholder="Descripción opcional"
         />
       </div>
       {error && (
-        <p role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <p role="alert" className="rounded-lg border border-red-300 bg-red-100/60 px-3 py-2 text-sm text-red-800 dark:bg-red-500/10 dark:text-red-300">
           {error}
         </p>
       )}
       <div className="flex justify-end">
-        <button
-          type="submit"
-          disabled={busy}
-          className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
-        >
+        <button type="submit" disabled={busy} className="nx-btn nx-btn-primary">
           {busy ? 'Guardando…' : submitLabel}
         </button>
       </div>

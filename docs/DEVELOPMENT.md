@@ -425,6 +425,66 @@ y asignarlo a ADMIN (seed idempotente). Migración: `0007_cash`.
   paginación y botones "Exportar PDF / Excel" que descargan el blob
   respetando el filename del header.
 
+## Inteligencia Artificial (Fase 10)
+
+### Reglas de negocio implementadas
+
+- **Backend:** módulo `app/ai/` integra la API de OpenAI para análisis de
+  ventas, predicción de demanda y recomendaciones de inventario. Protegido por
+  RBAC (`ai.*`). La IA **no modifica** la base de datos: solo analiza y sugiere.
+- **Frontend:** ruta `/ia` (visible según permiso) con análisis, tendencias e
+  historial.
+
+## Rediseño UX/UI Profesional — NEXORA (Fase 11)
+
+Rediseño completo del frontend para convertirlo en una aplicación comercial
+premium sin romper backend, contratos, RBAC ni tests (364 tests backend · 1
+suits sin cambios).
+
+### Tema y branding
+
+- Marca **NEXORA**; tema **oscuro/claro** con `ThemeContext`.
+- La preferencia persiste en `localStorage` (key `nexora-theme`) y aplica la
+  clave `dark` en `<html>`. Tokens de diseño `.nx-*` con Tailwind v4 (sin
+  archivos de configuración).
+- Iconos: set SVG propio en `components/ui/Icon.tsx` (unión `IconName`).
+  **No** añadir librerías de iconos.
+
+### Sistema de componentes UI
+
+- UI genérica en `components/ui/`: `Badge` (tonos
+  green/red/blue/gray/amber/purple), `Button`, `Modal`, `PageHeader`,
+  `KpiCard`, `LoadingState`, `EmptyState`, `ErrorAlert`, `ConfirmDialog`,
+  `Pagination`, `Icon` y `ThemeToggle`.
+- Componentes de dominio en `components/domain/` (formularios, modales).
+
+### Layout y navegación
+
+- `layouts/MainLayout.tsx`: sidebar colapsable/drawer + header con
+  `ThemeToggle`; la navegación se adapta al rol (oculta/deshabilita según
+  permiso vía `utils/permissions.ts::userHasPermission`).
+- `routes/index.ts`: rutas protegidas + rutas de AI/proveedores/configuración.
+
+### Elevaciones aplicadas por página
+
+- Dashboard (HomePage): KPIs, incluido "Caja — efectivo esperado" desde
+  `data.currentRegister` (grid `xl:grid-cols-5`).
+- POS (PointOfSalePage): búsqueda con debounce (350 ms), estados de
+  carga/vacío para productos y carrito, feedback inline de errores de cliente.
+- SalesPage: búsqueda con debounce; SalesDetail/Receivables/CustomerDetail:
+  Badge por estado unificado y tablas con `overflow-x-auto`.
+- CashPage: Badge por tipo de movimiento (`MOVEMENT_TYPE_TONE`:
+  OPENING→blue, SALE/RECEIVABLE_PAYMENT/CASH_IN→green, CASH_OUT→red,
+  ADJUSTMENT→amber) + `LoadingState` y tablas responsive.
+- ReportsPage: etiqueta de periodo única y botones PDF/Excel deshabilitados
+  cuando el reporte está vacío.
+- LoginPage: login premium rediseñado; AI: página "NEXORA AI".
+
+### Verificación
+
+- Backend: `python -m pytest -q` (364 tests)
+- Frontend: `npm run build` (typecheck + build) y `npm run lint`
+
 ## Productos e Inventario (Fase 3)
 
 ### Reglas de negocio implementadas
@@ -563,14 +623,18 @@ sistema-facturacion-inventario-ia/
 │   └── Dockerfile
 ├── frontend/
 │   ├── src/
-│   │   ├── components/      # Componentes React
-│   │   ├── pages/           # Páginas
-│   │   ├── services/        # Servicios API
-│   │   ├── hooks/           # Custom hooks
-│   │   ├── contexts/        # Contexts React
-│   │   ├── types/           # Interfaces TypeScript
-│   │   ├── utils/           # Utilidades
-│   │   └── routes/          # Rutas
+│   │   ├── components/      # ui/ (Badge, Button, Modal, Icon, ThemeToggle, ...)
+│   │   │                    # + domain/ (formularios, modales)
+│   │   ├── layouts/         # MainLayout (sidebar colapsable/drawer)
+│   │   ├── pages/           # Una carpeta por módulo (auth, home, categories,
+│   │   │                    # suppliers, products, inventory, purchases,
+│   │   │                    # customers, sales, cash, reports, ai)
+│   │   ├── services/        # Servicios API (uno por dominio)
+│   │   ├── hooks/           # useAsync, useHealth, useDashboard
+│   │   ├── contexts/        # AuthContext + ThemeContext (dark/light)
+│   │   ├── types/           # Interfaces TypeScript por dominio
+│   │   ├── utils/           # format.ts (formatCurrency) + permissions.ts
+│   │   └── routes/          # index.ts (rutas protegidas)
 │   ├── package.json
 │   └── vite.config.ts
 ├── docs/
@@ -673,6 +737,22 @@ Desviaciones menores respecto a `docs/ARCHITECTURE.md`, documentadas según las 
 | Egresos | Rechazo 409 si dejan efectivo negativo | El cajón no puede quedar en negativo por operación manual |
 | ADJUSTMENT | Reservado en modelo/CHECK, no expuesto por API | Preparado para ajustes futuros de cierre sin migración nueva |
 | RBAC | Nuevo `cash.report` solo ADMIN; summary no embebido para CASHIER | Separación consulta-operación; el cajero ve su resumen vía detalle/current |
+
+### Decisiones técnicas (Fase 11 — Rediseño UX/UI NEXORA)
+
+| Tema | Decisión | Motivo |
+|------|----------|--------|
+| Marca | NEXORA en login, dashboard e identidad visual | Branding comercial coherente y profesional |
+| Tema | `ThemeContext` + key `nexora-theme` + clase `dark` en `<html>` | Persistencia de preferencia entre sesiones sin back-end |
+| Tokens | Tailwind v4 con tokens `.nx-*` (sin configs) | Consistencia de diseño y dark/light sin fuga de variables |
+| Iconos | Set SVG propio `Icon.tsx` (`IconName`) | Cero dependencias externas; bundle ligero |
+| Componentes | Biblioteca UI interna (`components/ui/*`) | Reutilización y consistencia visual en todas las páginas |
+| Sidebar | `MainLayout` colapsable/drawer responsive | Mejor aprovechamiento en escritorio y móvil |
+| RBAC en UI | `userHasPermission` para ocultar/deshabilitar | Alineado a la regla del proyecto (frontend respeta permisos) |
+| Tablas | `overflow-x-auto` + `tabular-nums` en montos | Responsive y alineación numérica en pantallas pequeñas |
+| Estados | Badge por estado/tipo + `LoadingState`/`EmptyState` | Feedback claro de carga, vacío y semántica de datos |
+| Búsqueda | Debounce 350 ms en POS y ventas | Reduce peticiones y latencia al escribir |
+| Exportación | Botones PDF/Excel deshabilitados si reporte vacío | Evita descargas inútiles |
 
 ## Convenciones
 

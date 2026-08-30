@@ -10,9 +10,6 @@ interface SupplierFormProps {
   onSubmit: (values: SupplierFormValues) => void;
 }
 
-const inputClass =
-  'mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none';
-
 const EMPTY_VALUES: SupplierFormValues = {
   name: '',
   identification: '',
@@ -74,14 +71,14 @@ export default function SupplierForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label htmlFor="supplier-name" className="block text-sm font-medium text-gray-700">
+        <label htmlFor="supplier-name" className="nx-label">
           Nombre <span className="text-red-500">*</span>
         </label>
         <input
           id="supplier-name"
           value={values.name}
           onChange={(event) => set('name', event.target.value)}
-          className={inputClass}
+          className="nx-input"
           placeholder="Ej. Distribuidora Alimenticia S.A."
         />
         <InlineError message={fieldErrors.name} />
@@ -89,40 +86,34 @@ export default function SupplierForm({
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
-          <label
-            htmlFor="supplier-identification"
-            className="block text-sm font-medium text-gray-700"
-          >
+          <label htmlFor="supplier-identification" className="nx-label">
             Identificación (cédula jurídica / RUC / NIT)
           </label>
           <input
             id="supplier-identification"
             value={values.identification}
             onChange={(event) => set('identification', event.target.value)}
-            className={inputClass}
+            className="nx-input"
             placeholder="Ej. 310123456789"
           />
           <InlineError message={fieldErrors.identification} />
         </div>
         <div>
-          <label
-            htmlFor="supplier-contact"
-            className="block text-sm font-medium text-gray-700"
-          >
+          <label htmlFor="supplier-contact" className="nx-label">
             Nombre de contacto
           </label>
           <input
             id="supplier-contact"
             value={values.contact_name}
             onChange={(event) => set('contact_name', event.target.value)}
-            className={inputClass}
+            className="nx-input"
             placeholder="Ej. María Rodríguez"
           />
           <InlineError message={fieldErrors.contact_name} />
         </div>
 
         <div>
-          <label htmlFor="supplier-phone" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="supplier-phone" className="nx-label">
             Teléfono
           </label>
           <input
@@ -130,13 +121,13 @@ export default function SupplierForm({
             type="tel"
             value={values.phone}
             onChange={(event) => set('phone', event.target.value)}
-            className={inputClass}
+            className="nx-input"
             placeholder="+506 8888-1234"
           />
           <InlineError message={fieldErrors.phone} />
         </div>
         <div>
-          <label htmlFor="supplier-email" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="supplier-email" className="nx-label">
             Email
           </label>
           <input
@@ -144,40 +135,40 @@ export default function SupplierForm({
             type="email"
             value={values.email}
             onChange={(event) => set('email', event.target.value)}
-            className={inputClass}
+            className="nx-input"
             placeholder="ventas@proveedor.com"
           />
           <InlineError message={fieldErrors.email} />
         </div>
 
         <div>
-          <label htmlFor="supplier-address" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="supplier-address" className="nx-label">
             Dirección
           </label>
           <input
             id="supplier-address"
             value={values.address}
             onChange={(event) => set('address', event.target.value)}
-            className={inputClass}
+            className="nx-input"
           />
           <InlineError message={fieldErrors.address} />
         </div>
         <div>
-          <label htmlFor="supplier-city" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="supplier-city" className="nx-label">
             Ciudad
           </label>
           <input
             id="supplier-city"
             value={values.city}
             onChange={(event) => set('city', event.target.value)}
-            className={inputClass}
+            className="nx-input"
           />
           <InlineError message={fieldErrors.city} />
         </div>
       </div>
 
       <div>
-        <label htmlFor="supplier-notes" className="block text-sm font-medium text-gray-700">
+        <label htmlFor="supplier-notes" className="nx-label">
           Notas
         </label>
         <textarea
@@ -185,26 +176,19 @@ export default function SupplierForm({
           rows={2}
           value={values.notes}
           onChange={(event) => set('notes', event.target.value)}
-          className={inputClass}
+          className="nx-textarea"
           placeholder="Condiciones de entrega, días de visita, etc."
         />
         <InlineError message={fieldErrors.notes} />
       </div>
 
       {error && (
-        <p
-          role="alert"
-          className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
-        >
+        <p role="alert" className="rounded-lg border border-red-300 bg-red-100/60 px-3 py-2 text-sm text-red-800 dark:bg-red-500/10 dark:text-red-300">
           {error}
         </p>
       )}
       <div className="flex justify-end">
-        <button
-          type="submit"
-          disabled={busy}
-          className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
-        >
+        <button type="submit" disabled={busy} className="nx-btn nx-btn-primary">
           {busy ? 'Guardando…' : submitLabel}
         </button>
       </div>

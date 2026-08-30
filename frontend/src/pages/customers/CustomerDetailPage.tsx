@@ -21,17 +21,17 @@ import { ROUTES } from '../../routes';
 import PaymentModal from '../../components/domain/PaymentModal';
 import Badge from '../../components/ui/Badge';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
+import EmptyState from '../../components/ui/EmptyState';
 import ErrorAlert from '../../components/ui/ErrorAlert';
+import LoadingState from '../../components/ui/LoadingState';
 import Modal from '../../components/ui/Modal';
 
-const inputClass =
-  'block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none';
-
-function statusTone(status: string): 'amber' | 'blue' | 'green' | 'red' {
+function statusTone(status: string): 'amber' | 'green' | 'red' | 'gray' {
   if (status === 'PAID') return 'green';
-  if (status === 'PARTIALLY_PAID') return 'blue';
-  if (status === 'CANCELLED') return 'red';
-  return 'amber';
+  if (status === 'PARTIALLY_PAID') return 'amber';
+  if (status === 'OPEN') return 'red';
+  if (status === 'CANCELLED') return 'gray';
+  return 'gray';
 }
 
 export default function CustomerDetailPage() {
@@ -136,7 +136,7 @@ export default function CustomerDetailPage() {
       <div className="space-y-4">
         <Link
           to={ROUTES.CUSTOMERS}
-          className="text-sm font-medium text-blue-600 hover:text-blue-800"
+          className="text-sm font-medium text-primary hover:underline"
         >
           ← Volver a clientes
         </Link>
@@ -151,20 +151,20 @@ export default function CustomerDetailPage() {
   const summary = statement?.summary;
 
   return (
-    <div className="space-y-4">
+    <div className="animate-fade-in space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <Link
             to={ROUTES.CUSTOMERS}
-            className="text-sm font-medium text-blue-600 hover:text-blue-800"
+            className="text-sm font-medium text-primary hover:underline"
           >
             ← Clientes
           </Link>
-          <h2 className="mt-1 text-xl font-bold text-gray-900">
+          <h2 className="mt-1 text-xl font-bold text-foreground">
             {customer ? customer.name : 'Cargando…'}
           </h2>
           {customer && (
-            <p className="mt-0.5 text-sm text-gray-500">
+            <p className="mt-0.5 text-sm text-muted">
               {customer.identification ? `${customer.identification} · ` : ''}
               {customer.phone ?? 'sin teléfono'}
               {customer.email ? ` · ${customer.email}` : ''}
@@ -181,7 +181,7 @@ export default function CustomerDetailPage() {
               setFormErrors({});
               setNewOpen(true);
             }}
-            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+            className="nx-btn nx-btn-primary"
           >
             + Nueva cuenta por cobrar
           </button>
@@ -189,7 +189,7 @@ export default function CustomerDetailPage() {
       </div>
 
       {customer && !customer.is_active && (
-        <p className="rounded-md border border-yellow-200 bg-yellow-50 px-3 py-2 text-sm text-yellow-800">
+        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-400/30 dark:bg-amber-400/10 dark:text-amber-200">
           Cliente inactivo: no puede usarse en ventas futuras; su historial se
           conserva.
         </p>
@@ -198,8 +198,8 @@ export default function CustomerDetailPage() {
       {/* Resumen de crédito */}
       {credit && summary && (
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-          <div className="rounded-lg bg-white p-4 shadow">
-            <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+          <div className="nx-card p-4">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted">
               Crédito
             </p>
             <p className="mt-1 text-lg font-semibold">
@@ -210,35 +210,35 @@ export default function CustomerDetailPage() {
               )}
             </p>
           </div>
-          <div className="rounded-lg bg-white p-4 shadow">
-            <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+          <div className="nx-card p-4">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted">
               Límite
             </p>
-            <p className="mt-1 tabular-nums text-lg font-semibold text-gray-900">
+            <p className="mt-1 tabular-nums text-lg font-semibold text-foreground">
               {formatCurrency(credit.credit_limit)}
             </p>
           </div>
-          <div className="rounded-lg bg-white p-4 shadow">
-            <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+          <div className="nx-card p-4">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted">
               Saldo actual
             </p>
-            <p className="mt-1 tabular-nums text-lg font-semibold text-gray-900">
+            <p className="mt-1 tabular-nums text-lg font-semibold text-foreground">
               {formatCurrency(credit.current_balance)}
             </p>
           </div>
-          <div className="rounded-lg bg-white p-4 shadow">
-            <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+          <div className="nx-card p-4">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted">
               Disponible
             </p>
-            <p className="mt-1 tabular-nums text-lg font-semibold text-green-700">
+            <p className="mt-1 tabular-nums text-lg font-semibold text-green-600 dark:text-green-400">
               {formatCurrency(credit.credit_available)}
             </p>
           </div>
-          <div className="rounded-lg bg-white p-4 shadow">
-            <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+          <div className="nx-card p-4">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted">
               Deuda vigente
             </p>
-            <p className="mt-1 tabular-nums text-lg font-semibold text-gray-900">
+            <p className="mt-1 tabular-nums text-lg font-semibold text-foreground">
               {formatCurrency(summary.total_balance)}
             </p>
           </div>
@@ -248,65 +248,64 @@ export default function CustomerDetailPage() {
       {actionError && <ErrorAlert message={actionError} />}
 
       {/* Cuentas por cobrar */}
-      <div className="overflow-hidden rounded-lg bg-white shadow">
-        <h3 className="border-b border-gray-200 px-4 py-3 text-sm font-semibold text-gray-700">
+      <div className="nx-card overflow-hidden">
+        <h3 className="border-b border-line px-4 py-3 text-sm font-semibold text-foreground">
           Cuentas por cobrar
           {summary &&
             ` (${summary.open_count} pendientes · ${summary.partially_paid_count} abonadas · ${summary.paid_count} pagadas · ${summary.cancelled_count} anuladas)`}
         </h3>
         {statementState.loading ? (
-          <p className="px-4 py-10 text-center text-sm text-gray-500">Cargando…</p>
+          <div className="p-5">
+            <LoadingState rows={5} />
+          </div>
         ) : (statement?.accounts.total ?? 0) === 0 ? (
-          <p className="px-4 py-10 text-center text-sm text-gray-500">
-            Sin cuentas por cobrar registradas.
-          </p>
+          <EmptyState
+            title="Sin cuentas por cobrar"
+            hint="Registra una cuenta por cobrar para este cliente."
+            icon="banknote"
+          />
         ) : (
-          <table className="min-w-full divide-y divide-gray-200 text-sm">
-            <thead className="bg-gray-50">
+          <div className="overflow-x-auto">
+          <table className="nx-table">
+            <thead>
               <tr>
-                <th className="px-4 py-3 text-left font-semibold text-gray-600">Fecha</th>
-                <th className="hidden px-4 py-3 text-left font-semibold text-gray-600 md:table-cell">
-                  Descripción
-                </th>
-                <th className="hidden px-4 py-3 text-left font-semibold text-gray-600 sm:table-cell">
-                  Vencimiento
-                </th>
-                <th className="px-4 py-3 text-right font-semibold text-gray-600">Original</th>
-                <th className="hidden px-4 py-3 text-right font-semibold text-gray-600 sm:table-cell">
-                  Abonado
-                </th>
-                <th className="px-4 py-3 text-right font-semibold text-gray-600">Saldo</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-600">Estado</th>
-                <th className="px-4 py-3 text-right font-semibold text-gray-600">Acciones</th>
+                <th className="text-left">Fecha</th>
+                <th className="hidden text-left md:table-cell">Descripción</th>
+                <th className="hidden text-left sm:table-cell">Vencimiento</th>
+                <th className="text-right">Original</th>
+                <th className="hidden text-right sm:table-cell">Abonado</th>
+                <th className="text-right">Saldo</th>
+                <th className="text-left">Estado</th>
+                <th className="text-right">Acciones</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody>
               {statement?.accounts.items.map((account) => (
-                <tr key={account.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-gray-600">
+                <tr key={account.id} className="hover:bg-surface-2">
+                  <td className="text-muted">
                     {formatDateTime(account.created_at)}
                   </td>
-                  <td className="hidden max-w-[240px] truncate px-4 py-3 text-gray-600 md:table-cell">
+                  <td className="hidden max-w-[240px] truncate text-muted md:table-cell">
                     {account.description || '—'}
                   </td>
-                  <td className="hidden px-4 py-3 text-gray-600 sm:table-cell">
+                  <td className="hidden text-muted sm:table-cell">
                     {account.due_date ?? '—'}
                   </td>
-                  <td className="px-4 py-3 text-right tabular-nums text-gray-800">
+                  <td className="text-right tabular-nums text-muted">
                     {formatCurrency(account.original_amount)}
                   </td>
-                  <td className="hidden px-4 py-3 text-right tabular-nums text-gray-800 sm:table-cell">
+                  <td className="hidden text-right tabular-nums text-muted sm:table-cell">
                     {formatCurrency(account.paid_amount)}
                   </td>
-                  <td className="px-4 py-3 text-right font-semibold tabular-nums text-gray-900">
+                  <td className="text-right font-semibold tabular-nums text-foreground">
                     {formatCurrency(account.balance)}
                   </td>
-                  <td className="px-4 py-3">
+                  <td>
                     <Badge tone={statusTone(account.status)}>
                       {receivableStatusLabel(account.status)}
                     </Badge>
                   </td>
-                  <td className="px-4 py-3 text-right whitespace-nowrap">
+                  <td className="whitespace-nowrap text-right">
                     {canPay &&
                       (account.status === 'OPEN' ||
                         account.status === 'PARTIALLY_PAID') && (
@@ -316,7 +315,7 @@ export default function CustomerDetailPage() {
                             setPaymentError(null);
                             setPayingAccount(account);
                           }}
-                          className="mr-2 text-sm font-medium text-blue-600 hover:text-blue-800"
+                          className="mr-2 text-sm font-medium text-primary hover:underline"
                         >
                           Abonar
                         </button>
@@ -327,7 +326,7 @@ export default function CustomerDetailPage() {
                         <button
                           type="button"
                           onClick={() => setCancellingAccount(account)}
-                          className="text-sm font-medium text-red-600 hover:text-red-800"
+                          className="text-sm font-medium text-red-600 hover:underline dark:text-red-400"
                         >
                           Anular
                         </button>
@@ -337,55 +336,56 @@ export default function CustomerDetailPage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 
       {/* Historial de pagos */}
-      <div className="overflow-hidden rounded-lg bg-white shadow">
-        <h3 className="border-b border-gray-200 px-4 py-3 text-sm font-semibold text-gray-700">
+      <div className="nx-card overflow-hidden">
+        <h3 className="border-b border-line px-4 py-3 text-sm font-semibold text-foreground">
           Historial de pagos
         </h3>
         {(statement?.payments.total ?? 0) === 0 ? (
-          <p className="px-4 py-10 text-center text-sm text-gray-500">
-            Sin pagos registrados.
-          </p>
+          <EmptyState
+            title="Sin pagos registrados"
+            hint="Los abonos a este cliente aparecerán aquí."
+            icon="check-circle"
+          />
         ) : (
-          <table className="min-w-full divide-y divide-gray-200 text-sm">
-            <thead className="bg-gray-50">
+          <div className="overflow-x-auto">
+          <table className="nx-table">
+            <thead>
               <tr>
-                <th className="px-4 py-3 text-left font-semibold text-gray-600">Fecha</th>
-                <th className="px-4 py-3 text-right font-semibold text-gray-600">Monto</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-600">Método</th>
-                <th className="hidden px-4 py-3 text-left font-semibold text-gray-600 md:table-cell">
-                  Referencia
-                </th>
-                <th className="hidden px-4 py-3 text-left font-semibold text-gray-600 md:table-cell">
-                  Registrado por
-                </th>
+                <th className="text-left">Fecha</th>
+                <th className="text-right">Monto</th>
+                <th className="text-left">Método</th>
+                <th className="hidden text-left md:table-cell">Referencia</th>
+                <th className="hidden text-left md:table-cell">Registrado por</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody>
               {statement?.payments.items.map((payment) => (
-                <tr key={payment.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-gray-600">
+                <tr key={payment.id} className="hover:bg-surface-2">
+                  <td className="text-muted">
                     {formatDateTime(payment.created_at)}
                   </td>
-                  <td className="px-4 py-3 text-right font-semibold tabular-nums text-green-700">
+                  <td className="text-right font-semibold tabular-nums text-green-600 dark:text-green-400">
                     +{formatCurrency(payment.amount)}
                   </td>
-                  <td className="px-4 py-3 text-gray-600">
+                  <td className="text-muted">
                     {paymentMethodLabel(payment.payment_method)}
                   </td>
-                  <td className="hidden px-4 py-3 text-gray-600 md:table-cell">
+                  <td className="hidden text-muted md:table-cell">
                     {payment.reference || '—'}
                   </td>
-                  <td className="hidden px-4 py-3 text-gray-600 md:table-cell">
+                  <td className="hidden text-muted md:table-cell">
                     {payment.created_by_username ?? '—'}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 
@@ -397,7 +397,7 @@ export default function CustomerDetailPage() {
       >
         <form onSubmit={handleCreateReceivable} className="space-y-4">
           <div>
-            <label htmlFor="receivable-amount" className="block text-sm font-medium text-gray-700">
+            <label htmlFor="receivable-amount" className="nx-label">
               Monto <span className="text-red-500">*</span>
             </label>
             <input
@@ -407,14 +407,14 @@ export default function CustomerDetailPage() {
               step="0.01"
               value={amount}
               onChange={(event) => setAmount(event.target.value)}
-              className={`mt-1 ${inputClass}`}
+              className="nx-input"
             />
             {formErrors.amount && (
-              <p className="mt-1 text-xs text-red-600">{formErrors.amount}</p>
+              <p className="mt-1 text-xs text-red-600 dark:text-red-400">{formErrors.amount}</p>
             )}
           </div>
           <div>
-            <label htmlFor="receivable-due" className="block text-sm font-medium text-gray-700">
+            <label htmlFor="receivable-due" className="nx-label">
               Fecha de vencimiento
             </label>
             <input
@@ -422,11 +422,11 @@ export default function CustomerDetailPage() {
               type="date"
               value={dueDate}
               onChange={(event) => setDueDate(event.target.value)}
-              className={`mt-1 ${inputClass}`}
+              className="nx-input"
             />
           </div>
           <div>
-            <label htmlFor="receivable-desc" className="block text-sm font-medium text-gray-700">
+            <label htmlFor="receivable-desc" className="nx-label">
               Descripción
             </label>
             <textarea
@@ -434,14 +434,14 @@ export default function CustomerDetailPage() {
               rows={2}
               value={description}
               onChange={(event) => setDescription(event.target.value)}
-              className={`mt-1 ${inputClass}`}
+              className="nx-textarea"
               placeholder="Ej. Mercadería fiada del sábado"
             />
           </div>
           {actionError && (
             <p
               role="alert"
-              className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+              className="rounded-lg border border-red-300 bg-red-100/60 px-3 py-2 text-sm text-red-800 dark:bg-red-500/10 dark:text-red-300"
             >
               {actionError}
             </p>
@@ -450,7 +450,7 @@ export default function CustomerDetailPage() {
             <button
               type="submit"
               disabled={busy}
-              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+              className="nx-btn nx-btn-primary"
             >
               {busy ? 'Creando…' : 'Crear cuenta'}
             </button>
@@ -493,7 +493,7 @@ export default function CustomerDetailPage() {
         <button
           type="button"
           onClick={() => navigate(ROUTES.CUSTOMERS)}
-          className="text-sm font-medium text-gray-600 hover:text-gray-800"
+          className="text-sm font-medium text-muted hover:text-foreground hover:underline"
         >
           ← Volver al listado
         </button>

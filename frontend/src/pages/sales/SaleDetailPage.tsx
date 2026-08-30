@@ -68,7 +68,7 @@ export default function SaleDetailPage() {
 
   if (saleState.loading && !saleState.data) {
     return (
-      <p className="py-10 text-center text-sm text-gray-500">Cargando venta…</p>
+      <p className="py-10 text-center text-sm text-muted">Cargando venta…</p>
     );
   }
   if (saleState.error || !saleState.data) {
@@ -79,11 +79,11 @@ export default function SaleDetailPage() {
   const isDraft = sale.status === 'DRAFT';
 
   return (
-    <div className="mx-auto max-w-3xl space-y-4">
+    <div className="mx-auto max-w-3xl animate-fade-in space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Link
           to="/ventas"
-          className="text-sm font-medium text-blue-600 hover:text-blue-800"
+          className="text-sm font-medium text-primary hover:underline"
         >
           ← Volver a ventas
         </Link>
@@ -95,7 +95,7 @@ export default function SaleDetailPage() {
                 setActionError(null);
                 setConfirming(true);
               }}
-              className="rounded-md bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700"
+              className="nx-btn nx-btn-primary"
             >
               Confirmar (cobrar)
             </button>
@@ -105,7 +105,7 @@ export default function SaleDetailPage() {
                 setActionError(null);
                 setCancelling(true);
               }}
-              className="rounded-md border border-red-300 px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50"
+              className="nx-btn nx-btn-danger"
             >
               Cancelar venta
             </button>
@@ -116,13 +116,13 @@ export default function SaleDetailPage() {
       {actionError && <ErrorAlert message={actionError} />}
 
       {/* Comprobante */}
-      <div className="rounded-lg bg-white p-6 shadow">
-        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-gray-200 pb-4">
+      <div className="nx-card p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-line pb-4">
           <div>
-            <p className="font-mono text-lg font-bold text-gray-900">
+            <p className="font-mono text-lg font-bold text-foreground">
               {sale.sale_number}
             </p>
-            <p className="mt-1 text-xs text-gray-500">
+            <p className="mt-1 text-xs text-muted">
               {formatDateTime(sale.created_at)} · Cajero:{' '}
               {sale.created_by_username ?? '—'}
             </p>
@@ -134,24 +134,24 @@ export default function SaleDetailPage() {
 
         <dl className="grid grid-cols-1 gap-3 py-4 text-sm sm:grid-cols-3">
           <div>
-            <dt className="text-xs font-medium uppercase text-gray-500">Cliente</dt>
-            <dd className="mt-0.5 text-gray-900">
+            <dt className="text-xs font-medium uppercase text-muted">Cliente</dt>
+            <dd className="mt-0.5 text-foreground">
               {sale.customer?.name ?? 'Consumidor final'}
             </dd>
           </div>
           <div>
-            <dt className="text-xs font-medium uppercase text-gray-500">Método de pago</dt>
-            <dd className="mt-0.5 text-gray-900">
+            <dt className="text-xs font-medium uppercase text-muted">Método de pago</dt>
+            <dd className="mt-0.5 text-foreground">
               {salePaymentMethodLabel(sale.payment_method)}
             </dd>
           </div>
           {(sale.payment_method === 'CASH' ||
             Number(sale.change_due) > 0) && (
             <div>
-              <dt className="text-xs font-medium uppercase text-gray-500">
+              <dt className="text-xs font-medium uppercase text-muted">
                 Efectivo / Vuelto
               </dt>
-              <dd className="mt-0.5 text-gray-900">
+              <dd className="mt-0.5 text-foreground">
                 {formatCurrency(sale.amount_paid)}
                 {Number(sale.change_due) > 0 &&
                   ` / ${formatCurrency(sale.change_due)}`}
@@ -160,57 +160,59 @@ export default function SaleDetailPage() {
           )}
         </dl>
 
-        <table className="min-w-full divide-y divide-gray-200 text-sm">
-          <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+        <div className="overflow-x-auto">
+        <table className="nx-table">
+          <thead>
             <tr>
-              <th className="px-3 py-2 text-left font-semibold text-gray-600">Producto</th>
-              <th className="px-3 py-2 text-right font-semibold text-gray-600">Cant.</th>
-              <th className="px-3 py-2 text-right font-semibold text-gray-600">Precio</th>
-              <th className="px-3 py-2 text-right font-semibold text-gray-600">Importe</th>
+              <th className="text-left">Producto</th>
+              <th className="text-right">Cant.</th>
+              <th className="text-right">Precio</th>
+              <th className="text-right">Importe</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody>
             {sale.items.map((item) => (
               <tr key={item.id}>
-                <td className="px-3 py-2 text-gray-900">{item.product_name ?? '—'}</td>
-                <td className="px-3 py-2 text-right text-gray-700">{item.quantity}</td>
-                <td className="px-3 py-2 text-right text-gray-700">
+                <td className="text-foreground">{item.product_name ?? '—'}</td>
+                <td className="text-right text-muted">{item.quantity}</td>
+                <td className="text-right text-muted">
                   {formatCurrency(item.unit_price)}
                 </td>
-                <td className="px-3 py-2 text-right font-medium text-gray-900">
+                <td className="text-right font-medium text-foreground">
                   {formatCurrency(item.subtotal)}
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
+        </div>
 
         <div className="ml-auto mt-4 max-w-xs space-y-1 text-sm">
-          <div className="flex justify-between text-gray-600">
+          <div className="flex justify-between text-muted">
             <span>Subtotal</span>
-            <span>{formatCurrency(sale.subtotal)}</span>
+            <span className="tabular-nums">{formatCurrency(sale.subtotal)}</span>
           </div>
-          <div className="flex justify-between text-red-600">
+          <div className="flex justify-between text-red-600 dark:text-red-400">
             <span>Descuento</span>
-            <span>−{formatCurrency(sale.discount)}</span>
+            <span className="tabular-nums">−{formatCurrency(sale.discount)}</span>
           </div>
-          <div className="flex justify-between text-gray-600">
+          <div className="flex justify-between text-muted">
             <span>Impuesto</span>
-            <span>+{formatCurrency(sale.tax)}</span>
+            <span className="tabular-nums">+{formatCurrency(sale.tax)}</span>
           </div>
-          <div className="flex justify-between border-t border-gray-200 pt-2 text-base font-bold text-gray-900">
+          <div className="flex justify-between border-t border-line pt-2 text-base font-bold text-foreground">
             <span>Total</span>
-            <span>{formatCurrency(sale.total)}</span>
+            <span className="tabular-nums">{formatCurrency(sale.total)}</span>
           </div>
         </div>
 
         {sale.notes && (
-          <p className="mt-4 rounded-md bg-gray-50 px-3 py-2 text-xs text-gray-600">
+          <p className="mt-4 rounded-lg bg-surface px-3 py-2 text-xs text-muted">
             Notas: {sale.notes}
           </p>
         )}
         {sale.confirmed_at && (
-          <p className="mt-3 text-right text-xs text-gray-400">
+          <p className="mt-3 text-right text-xs text-faint">
             Confirmada el {formatDateTime(sale.confirmed_at)}
           </p>
         )}
@@ -221,7 +223,7 @@ export default function SaleDetailPage() {
         title="Confirmar venta"
         message={`¿Confirmar y cobrar la venta ${sale.sale_number} por ${formatCurrency(sale.total)}? Se descontará el stock de los productos.`}
         busy={busy}
-        error={null}
+        error={confirming ? actionError : null}
         onConfirm={() => void handleConfirm()}
         onCancel={() => setConfirming(false)}
       />
@@ -231,7 +233,7 @@ export default function SaleDetailPage() {
         message={`¿Cancelar la venta ${sale.sale_number}? Quedará en estado CANCELLED y no podrá confirmarse.`}
         destructive
         busy={busy}
-        error={null}
+        error={cancelling ? actionError : null}
         onConfirm={() => void handleCancel()}
         onCancel={() => setCancelling(false)}
       />

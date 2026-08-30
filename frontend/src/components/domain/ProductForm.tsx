@@ -1,6 +1,10 @@
 import { useState } from 'react';
 import { InlineError } from '../ui/ErrorAlert';
-import type { ApiCategory, ApiSupplierBrief, ProductFormValues } from '../../types/catalog';
+import type {
+  ApiCategory,
+  ApiSupplierBrief,
+  ProductFormValues,
+} from '../../types/catalog';
 
 interface ProductFormProps {
   initial?: Partial<ProductFormValues>;
@@ -12,9 +16,6 @@ interface ProductFormProps {
   submitLabel: string;
   onSubmit: (values: ProductFormValues & { stock: string }) => void;
 }
-
-const inputClass =
-  'mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none';
 
 export default function ProductForm({
   initial,
@@ -58,12 +59,18 @@ export default function ProductForm({
     if (!values.name.trim()) errors.name = 'El nombre es obligatorio';
     if (!values.category_id) errors.category_id = 'Selecciona una categoría';
     if (isEdit === false && values.purchase_price.trim()) {
-      if (Number.isNaN(Number(values.purchase_price)) || Number(values.purchase_price) < 0) {
+      if (
+        Number.isNaN(Number(values.purchase_price)) ||
+        Number(values.purchase_price) < 0
+      ) {
         errors.purchase_price = 'Debe ser un número ≥ 0';
       }
     }
     if (values.sale_price.trim()) {
-      if (Number.isNaN(Number(values.sale_price)) || Number(values.sale_price) < 0) {
+      if (
+        Number.isNaN(Number(values.sale_price)) ||
+        Number(values.sale_price) < 0
+      ) {
         errors.sale_price = 'Debe ser un número ≥ 0';
       }
     }
@@ -92,14 +99,14 @@ export default function ProductForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label htmlFor="product-name" className="block text-sm font-medium text-gray-700">
+        <label htmlFor="product-name" className="nx-label">
           Nombre <span className="text-red-500">*</span>
         </label>
         <input
           id="product-name"
           value={values.name}
           onChange={(event) => set('name', event.target.value)}
-          className={inputClass}
+          className="nx-input"
           placeholder="Ej. Leche Entera 1L"
         />
         <InlineError message={fieldErrors.name} />
@@ -107,27 +114,27 @@ export default function ProductForm({
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
-          <label htmlFor="product-barcode" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="product-barcode" className="nx-label">
             Código de barras
           </label>
           <input
             id="product-barcode"
             value={values.barcode}
             onChange={(event) => set('barcode', event.target.value)}
-            className={inputClass}
+            className="nx-input"
             placeholder="EAN-13 (opcional)"
           />
           <InlineError message={fieldErrors.barcode} />
         </div>
         <div>
-          <label htmlFor="product-category" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="product-category" className="nx-label">
             Categoría <span className="text-red-500">*</span>
           </label>
           <select
             id="product-category"
             value={values.category_id}
             onChange={(event) => set('category_id', event.target.value)}
-            className={inputClass}
+            className="nx-select"
           >
             <option value="">Seleccionar…</option>
             {categories.map((category) => (
@@ -140,14 +147,14 @@ export default function ProductForm({
         </div>
 
         <div>
-          <label htmlFor="product-supplier" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="product-supplier" className="nx-label">
             Proveedor
           </label>
           <input
             id="supplier-search"
             value={supplierQuery}
             onChange={(event) => setSupplierQuery(event.target.value)}
-            className={inputClass}
+            className="nx-input"
             placeholder="Filtrar proveedores…"
             aria-label="Buscar proveedor"
           />
@@ -155,7 +162,7 @@ export default function ProductForm({
             aria-label="Seleccionar proveedor"
             value={values.supplier_id}
             onChange={(event) => set('supplier_id', event.target.value)}
-            className={inputClass}
+            className="nx-select mt-2"
           >
             <option value="">Sin proveedor</option>
             {filteredSuppliers.map((supplier) => (
@@ -168,7 +175,7 @@ export default function ProductForm({
         </div>
 
         <div>
-          <label htmlFor="product-purchase" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="product-purchase" className="nx-label">
             Precio de compra
           </label>
           <input
@@ -178,13 +185,13 @@ export default function ProductForm({
             min="0"
             value={values.purchase_price}
             onChange={(event) => set('purchase_price', event.target.value)}
-            className={inputClass}
+            className="nx-input"
             disabled={isEdit}
           />
           <InlineError message={fieldErrors.purchase_price} />
         </div>
         <div>
-          <label htmlFor="product-sale" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="product-sale" className="nx-label">
             Precio de venta
           </label>
           <input
@@ -194,14 +201,14 @@ export default function ProductForm({
             min="0"
             value={values.sale_price}
             onChange={(event) => set('sale_price', event.target.value)}
-            className={inputClass}
+            className="nx-input"
           />
           <InlineError message={fieldErrors.sale_price} />
         </div>
 
         {!isEdit && (
           <div>
-            <label htmlFor="product-stock" className="block text-sm font-medium text-gray-700">
+            <label htmlFor="product-stock" className="nx-label">
               Stock inicial
             </label>
             <input
@@ -211,13 +218,13 @@ export default function ProductForm({
               min="0"
               value={values.stock}
               onChange={(event) => set('stock', event.target.value)}
-              className={inputClass}
+              className="nx-input"
             />
             <InlineError message={fieldErrors.stock} />
           </div>
         )}
         <div>
-          <label htmlFor="product-minimum" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="product-minimum" className="nx-label">
             Stock mínimo
           </label>
           <input
@@ -227,14 +234,14 @@ export default function ProductForm({
             min="0"
             value={values.minimum_stock}
             onChange={(event) => set('minimum_stock', event.target.value)}
-            className={inputClass}
+            className="nx-input"
           />
           <InlineError message={fieldErrors.minimum_stock} />
         </div>
       </div>
 
       <div>
-        <label htmlFor="product-description" className="block text-sm font-medium text-gray-700">
+        <label htmlFor="product-description" className="nx-label">
           Descripción
         </label>
         <textarea
@@ -242,21 +249,17 @@ export default function ProductForm({
           rows={2}
           value={values.description}
           onChange={(event) => set('description', event.target.value)}
-          className={inputClass}
+          className="nx-textarea"
         />
       </div>
 
       {error && (
-        <p role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <p role="alert" className="rounded-lg border border-red-300 bg-red-100/60 px-3 py-2 text-sm text-red-800 dark:bg-red-500/10 dark:text-red-300">
           {error}
         </p>
       )}
       <div className="flex justify-end">
-        <button
-          type="submit"
-          disabled={busy}
-          className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
-        >
+        <button type="submit" disabled={busy} className="nx-btn nx-btn-primary">
           {busy ? 'Guardando…' : submitLabel}
         </button>
       </div>

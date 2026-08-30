@@ -4,7 +4,7 @@ Sistema web profesional para la gestión integral de un supermercado, con módul
 
 ## Estado
 
-**Fase 1 — Fundamentos**, **Fase 2 — Autenticación, Usuarios y Roles**, **Fase 3 — Productos e Inventario**, **Fase 4 — Proveedores**, **Fase 5 — Compras y Abastecimiento**, **Fase 6 — Clientes y Cuentas por Cobrar**, **Fase 7 — Ventas y Facturación**, **Fase 8 — Caja y Control de Efectivo** y **Fase 9 — Reportes y Exportación** completadas.
+**Fase 1 — Fundamentos**, **Fase 2 — Autenticación, Usuarios y Roles**, **Fase 3 — Productos e Inventario**, **Fase 4 — Proveedores**, **Fase 5 — Compras y Abastecimiento**, **Fase 6 — Clientes y Cuentas por Cobrar**, **Fase 7 — Ventas y Facturación**, **Fase 8 — Caja y Control de Efectivo**, **Fase 9 — Reportes y Exportación**, **Fase 10 — Inteligencia Artificial** y **Fase 11 — Rediseño UX/UI Profesional (NEXORA)** completadas.
 
 ## Arquitectura
 
@@ -22,11 +22,13 @@ Documentación completa: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 
 **Backend:** Python 3.11+, FastAPI, SQLAlchemy 2.0, Alembic, PostgreSQL 15+, JWT (python-jose), bcrypt
 
-**Frontend:** React 18, Vite, TypeScript, Tailwind CSS, Axios
+**Frontend:** React 19, Vite, TypeScript, Tailwind CSS v4, Axios
 
-**IA:** OpenAI API (futuro)
+**IA:** OpenAI API
 
 **Reportes:** PDF (reportlab), Excel (openpyxl)
+
+**UX/UI:** Marca **NEXORA** con tema oscuro/claro (tokens `.nx-*` y clase `dark`), set de iconos SVG propio (sin librerías externas).
 
 ## Instalación Rápida
 

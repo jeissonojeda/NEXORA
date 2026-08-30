@@ -20,15 +20,12 @@ import {
 } from '../../types/report';
 import EmptyState from '../../components/ui/EmptyState';
 import ErrorAlert from '../../components/ui/ErrorAlert';
+import Icon from '../../components/ui/Icon';
+import PageHeader from '../../components/ui/PageHeader';
 import Pagination from '../../components/ui/Pagination';
 import { formatCurrency, formatDateTime } from '../../utils/format';
 
-const inputClass =
-  'block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none';
-
 const PAGE_SIZE = 20;
-
-const selectClass = inputClass;
 
 function formatCell(column: ReportColumn, value: unknown): string {
   if (value === null || value === undefined || value === '') return '—';
@@ -160,7 +157,7 @@ export default function ReportsPage() {
   if (!canView) {
     return (
       <div className="space-y-4">
-        <h2 className="text-xl font-bold text-gray-900">Reportes</h2>
+        <PageHeader title="Reportes" subtitle="Indicadores y exportación de información." />
         <ErrorAlert message="No tienes permisos para consultar reportes." />
       </div>
     );
@@ -178,10 +175,7 @@ export default function ReportsPage() {
       case 'date':
         return (
           <div key={filter.param}>
-            <label
-              htmlFor={`filter-${filter.param}`}
-              className="block text-xs font-medium text-gray-500"
-            >
+            <label htmlFor={`filter-${filter.param}`} className="nx-label">
               {filter.label}
             </label>
             <input
@@ -189,24 +183,21 @@ export default function ReportsPage() {
               type="datetime-local"
               value={value}
               onChange={(event) => setValue(event.target.value)}
-              className={`mt-1 ${inputClass}`}
+              className="nx-input"
             />
           </div>
         );
       case 'category':
         return (
           <div key={filter.param}>
-            <label
-              htmlFor={`filter-${filter.param}`}
-              className="block text-xs font-medium text-gray-500"
-            >
+            <label htmlFor={`filter-${filter.param}`} className="nx-label">
               {filter.label}
             </label>
             <select
               id={`filter-${filter.param}`}
               value={value}
               onChange={(event) => setValue(event.target.value)}
-              className={`mt-1 ${selectClass}`}
+              className="nx-select"
             >
               <option value="">Todas</option>
               {(categoriesState.data?.data ?? []).map((category) => (
@@ -221,17 +212,14 @@ export default function ReportsPage() {
         const suppliers = suppliersState.data?.data.items ?? [];
         return (
           <div key={filter.param}>
-            <label
-              htmlFor={`filter-${filter.param}`}
-              className="block text-xs font-medium text-gray-500"
-            >
+            <label htmlFor={`filter-${filter.param}`} className="nx-label">
               {filter.label}
             </label>
             <select
               id={`filter-${filter.param}`}
               value={value}
               onChange={(event) => setValue(event.target.value)}
-              className={`mt-1 ${selectClass}`}
+              className="nx-select"
             >
               <option value="">Todos</option>
               {suppliers.map((supplier) => (
@@ -247,17 +235,14 @@ export default function ReportsPage() {
         const customers = customersState.data?.data.items ?? [];
         return (
           <div key={filter.param}>
-            <label
-              htmlFor={`filter-${filter.param}`}
-              className="block text-xs font-medium text-gray-500"
-            >
+            <label htmlFor={`filter-${filter.param}`} className="nx-label">
               {filter.label}
             </label>
             <select
               id={`filter-${filter.param}`}
               value={value}
               onChange={(event) => setValue(event.target.value)}
-              className={`mt-1 ${selectClass}`}
+              className="nx-select"
             >
               <option value="">Todos</option>
               {customers.map((customer) => (
@@ -273,17 +258,14 @@ export default function ReportsPage() {
         const users = usersState.data?.data ?? [];
         return (
           <div key={filter.param}>
-            <label
-              htmlFor={`filter-${filter.param}`}
-              className="block text-xs font-medium text-gray-500"
-            >
+            <label htmlFor={`filter-${filter.param}`} className="nx-label">
               {filter.label}
             </label>
             <select
               id={`filter-${filter.param}`}
               value={value}
               onChange={(event) => setValue(event.target.value)}
-              className={`mt-1 ${selectClass}`}
+              className="nx-select"
             >
               <option value="">Todos</option>
               {users.map((item) => (
@@ -298,17 +280,14 @@ export default function ReportsPage() {
       case 'payment_method':
         return (
           <div key={filter.param}>
-            <label
-              htmlFor={`filter-${filter.param}`}
-              className="block text-xs font-medium text-gray-500"
-            >
+            <label htmlFor={`filter-${filter.param}`} className="nx-label">
               {filter.label}
             </label>
             <select
               id={`filter-${filter.param}`}
               value={value}
               onChange={(event) => setValue(event.target.value)}
-              className={`mt-1 ${selectClass}`}
+              className="nx-select"
             >
               <option value="">Todos</option>
               {Object.entries(PAYMENT_METHOD_LABELS).map(([code, label]) => (
@@ -322,17 +301,14 @@ export default function ReportsPage() {
       case 'state':
         return (
           <div key={filter.param}>
-            <label
-              htmlFor={`filter-${filter.param}`}
-              className="block text-xs font-medium text-gray-500"
-            >
+            <label htmlFor={`filter-${filter.param}`} className="nx-label">
               {filter.label}
             </label>
             <select
               id={`filter-${filter.param}`}
               value={value}
               onChange={(event) => setValue(event.target.value)}
-              className={`mt-1 ${selectClass}`}
+              className="nx-select"
             >
               <option value="">Todos</option>
               {Object.entries(INVENTORY_STATE_LABELS).map(([code, label]) => (
@@ -346,17 +322,14 @@ export default function ReportsPage() {
       case 'purchase_status':
         return (
           <div key={filter.param}>
-            <label
-              htmlFor={`filter-${filter.param}`}
-              className="block text-xs font-medium text-gray-500"
-            >
+            <label htmlFor={`filter-${filter.param}`} className="nx-label">
               {filter.label}
             </label>
             <select
               id={`filter-${filter.param}`}
               value={value}
               onChange={(event) => setValue(event.target.value)}
-              className={`mt-1 ${selectClass}`}
+              className="nx-select"
             >
               <option value="">Todos</option>
               {Object.entries(PURCHASE_STATUS_LABELS).map(([code, label]) => (
@@ -370,17 +343,14 @@ export default function ReportsPage() {
       case 'receivable_status':
         return (
           <div key={filter.param}>
-            <label
-              htmlFor={`filter-${filter.param}`}
-              className="block text-xs font-medium text-gray-500"
-            >
+            <label htmlFor={`filter-${filter.param}`} className="nx-label">
               {filter.label}
             </label>
             <select
               id={`filter-${filter.param}`}
               value={value}
               onChange={(event) => setValue(event.target.value)}
-              className={`mt-1 ${selectClass}`}
+              className="nx-select"
             >
               <option value="">Todos</option>
               {Object.entries(RECEIVABLE_STATUS_LABELS).map(([code, label]) => (
@@ -394,19 +364,16 @@ export default function ReportsPage() {
       case 'period':
         return (
           <div key={filter.param}>
-            <label
-              htmlFor={`filter-${filter.param}`}
-              className="block text-xs font-medium text-gray-500"
-            >
+            <label htmlFor={`filter-${filter.param}`} className="nx-label">
               {filter.label}
             </label>
             <select
               id={`filter-${filter.param}`}
               value={value}
               onChange={(event) => setValue(event.target.value)}
-              className={`mt-1 ${selectClass}`}
+              className="nx-select"
             >
-              <option value="">Mensual</option>
+              <option value="">Todo el periodo</option>
               <option value="DAY">Diario</option>
               <option value="MONTH">Mensual</option>
             </select>
@@ -415,10 +382,7 @@ export default function ReportsPage() {
       case 'q':
         return (
           <div key={filter.param}>
-            <label
-              htmlFor={`filter-${filter.param}`}
-              className="block text-xs font-medium text-gray-500"
-            >
+            <label htmlFor={`filter-${filter.param}`} className="nx-label">
               {filter.label}
             </label>
             <input
@@ -426,7 +390,7 @@ export default function ReportsPage() {
               type="text"
               value={value}
               onChange={(event) => setValue(event.target.value)}
-              className={`mt-1 ${inputClass}`}
+              className="nx-input"
               placeholder="Nombre o identificación…"
             />
           </div>
@@ -437,16 +401,13 @@ export default function ReportsPage() {
   }
 
   return (
-    <div className="space-y-4">
-      <h2 className="text-xl font-bold text-gray-900">Reportes</h2>
+    <div className="animate-fade-in space-y-4">
+      <PageHeader title="Reportes" subtitle="Indicadores comerciales e inventario con exportación." />
 
-      <div className="rounded-lg bg-white p-4 shadow">
+      <div className="nx-card p-4">
         <div className="grid gap-3 md:grid-cols-[minmax(200px,260px)_1fr_auto_auto] md:items-end">
           <div>
-            <label
-              htmlFor="report-type"
-              className="block text-xs font-medium text-gray-500"
-            >
+            <label htmlFor="report-type" className="nx-label">
               Tipo de reporte
             </label>
             <select
@@ -455,7 +416,7 @@ export default function ReportsPage() {
               onChange={(event) =>
                 handleReportChange(event.target.value as ReportType)
               }
-              className={`mt-1 ${selectClass}`}
+              className="nx-select"
             >
               {REPORT_OPTIONS.map((item) => (
                 <option key={item.key} value={item.key}>
@@ -464,33 +425,35 @@ export default function ReportsPage() {
               ))}
             </select>
           </div>
-          <p className="pb-2 text-sm text-gray-500">{option.description}</p>
+          <p className="pb-2 text-sm text-muted">{option.description}</p>
           <button
             type="button"
             onClick={() => void handleExport('pdf')}
-            disabled={exporting !== null}
-            className="rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+            disabled={exporting !== null || !report || report.total === 0}
+            className="nx-btn nx-btn-danger"
           >
-            {exporting === 'pdf' ? 'Generando…' : 'Exportar PDF'}
+            <Icon name="printer" size={16} />
+            {exporting === 'pdf' ? 'Generando…' : 'PDF'}
           </button>
           <button
             type="button"
             onClick={() => void handleExport('excel')}
-            disabled={exporting !== null}
-            className="rounded-md bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50"
+            disabled={exporting !== null || !report || report.total === 0}
+            className="nx-btn nx-btn-success"
           >
-            {exporting === 'excel' ? 'Generando…' : 'Exportar Excel'}
+            <Icon name="download" size={16} />
+            {exporting === 'excel' ? 'Generando…' : 'Excel'}
           </button>
         </div>
 
         {option.filters.length > 0 && (
-          <form onSubmit={handleApplyFilters} className="mt-4 border-t border-gray-100 pt-4">
+          <form onSubmit={handleApplyFilters} className="mt-4 border-t border-line pt-4">
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 lg:items-end">
               {option.filters.map((filter) => renderFilterInput(filter))}
               <div className="flex justify-end gap-2 lg:col-span-full">
                 <button
                   type="submit"
-                  className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                  className="nx-btn nx-btn-primary"
                 >
                   Aplicar filtros
                 </button>
@@ -501,7 +464,7 @@ export default function ReportsPage() {
                     setAppliedFilters({});
                     setPage(1);
                   }}
-                  className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  className="nx-btn nx-btn-secondary"
                 >
                   Limpiar
                 </button>
@@ -514,13 +477,13 @@ export default function ReportsPage() {
       {exportError && <ErrorAlert message={exportError} />}
       {reportState.error && <ErrorAlert message={reportState.error} />}
 
-      <div className="overflow-hidden rounded-lg bg-white shadow">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 px-4 py-3">
-          <span className="text-sm font-semibold text-gray-700">
+      <div className="nx-card overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3">
+          <span className="text-sm font-semibold text-foreground">
             {report ? report.title : 'Reporte'}
           </span>
           {report && (
-            <span className="text-xs text-gray-400">
+            <span className="text-xs text-faint">
               Generado {formatDateTime(report.generated_at)} ·{' '}
               {report.total} fila(s){' '}
               {report.limit != null && report.total > report.limit
@@ -531,44 +494,46 @@ export default function ReportsPage() {
         </div>
 
         {reportState.loading ? (
-          <p className="px-4 py-10 text-center text-sm text-gray-500">
+          <p className="px-4 py-10 text-center text-sm text-muted">
             Cargando reporte…
           </p>
         ) : !report || report.total === 0 ? (
-          <EmptyState
-            title="Sin resultados"
-            hint="Ajusta los filtros o registra movimientos para ver datos aquí."
-          />
+          <div className="p-6">
+            <EmptyState
+              title="Sin resultados"
+              hint="Ajusta los filtros o registra movimientos para ver datos aquí."
+            />
+          </div>
         ) : (
           <>
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200 text-sm">
-                <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+              <table className="nx-table">
+                <thead>
                   <tr>
                     {report.columns.map((column) => (
                       <th
                         key={column.key}
-                        className={`px-4 py-3 font-semibold text-gray-600 ${
+                        className={
                           column.type === 'money' || column.type === 'int'
                             ? 'text-right'
                             : 'text-left'
-                        }`}
+                        }
                       >
                         {column.label}
                       </th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody>
                   {report.items.map((row, index) => (
-                    <tr key={index} className="hover:bg-gray-50">
+                    <tr key={index} className="hover:bg-surface-2">
                       {report.columns.map((column) => (
                         <td
                           key={column.key}
-                          className={`whitespace-nowrap px-4 py-3 ${
+                          className={`whitespace-nowrap ${
                             column.type === 'money' || column.type === 'int'
-                              ? 'text-right text-gray-800'
-                              : 'text-gray-600'
+                              ? 'text-right text-muted tabular-nums'
+                              : 'text-muted'
                           }`}
                         >
                           {formatCell(column, row[column.key])}
@@ -578,7 +543,7 @@ export default function ReportsPage() {
                   ))}
                 </tbody>
                 {hasTotals && (
-                  <tfoot className="bg-gray-50 font-semibold text-gray-900">
+                  <tfoot className="bg-surface-2 font-semibold text-foreground">
                     <tr>
                       {report.columns.map((column, columnIndex) => {
                         if (columnIndex === 0) {
@@ -594,7 +559,7 @@ export default function ReportsPage() {
                             key={column.key}
                             className={`px-4 py-3 ${
                               column.type === 'money' || column.type === 'int'
-                                ? 'text-right'
+                                ? 'text-right tabular-nums'
                                 : ''
                             }`}
                           >
@@ -607,12 +572,14 @@ export default function ReportsPage() {
                 )}
               </table>
             </div>
-            <Pagination
-              page={page}
-              pageSize={PAGE_SIZE}
-              total={report.total}
-              onChange={setPage}
-            />
+            <div className="border-t border-line px-4 py-3">
+              <Pagination
+                page={page}
+                pageSize={PAGE_SIZE}
+                total={report.total}
+                onChange={setPage}
+              />
+            </div>
           </>
         )}
       </div>

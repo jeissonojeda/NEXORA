@@ -15,11 +15,15 @@ import { movementLabel } from '../../types/catalog';
 import Badge from '../../components/ui/Badge';
 import EmptyState from '../../components/ui/EmptyState';
 import ErrorAlert from '../../components/ui/ErrorAlert';
+import LoadingState from '../../components/ui/LoadingState';
 import Pagination from '../../components/ui/Pagination';
+import PageHeader from '../../components/ui/PageHeader';
+import Icon from '../../components/ui/Icon';
 import StockOperationModal, {
   type StockOperationType,
 } from '../../components/domain/StockOperationModal';
 import { formatDateTime } from '../../utils/format';
+import { userHasPermission } from '../../utils/permissions';
 
 type Tab = 'stock' | 'movements' | 'low';
 
@@ -40,9 +44,7 @@ const PAGE_SIZE = 10;
 
 export default function InventoryPage() {
   const { user } = useAuth();
-  const canWrite =
-    user?.roles.some((role) => ['ADMIN', 'INVENTORY_MANAGER'].includes(role.name)) ??
-    false;
+  const canWrite = userHasPermission(user, 'inventory.update');
 
   const [tab, setTab] = useState<Tab>('stock');
 
@@ -144,18 +146,21 @@ export default function InventoryPage() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-xl font-bold text-gray-900">Inventario</h2>
-        {!canWrite && (
-          <p className="text-xs text-gray-500">
-            Solo lectura — requiere permisos de inventario para registrar movimientos.
-          </p>
-        )}
-      </div>
+    <div className="animate-fade-in space-y-5">
+      <PageHeader
+        title="Inventario"
+        subtitle="Existencias, movimientos y alertas de stock."
+        actions={
+          !canWrite && (
+            <p className="text-xs text-muted">
+              Solo lectura — requiere permisos de inventario para registrar movimientos.
+            </p>
+          )
+        }
+      />
 
       {/* Pestañas */}
-      <div className="border-b border-gray-200">
+      <div className="border-b border-line">
         <nav className="-mb-px flex gap-4" aria-label="Secciones de inventario">
           {TABS.map((item) => (
             <button
@@ -168,8 +173,8 @@ export default function InventoryPage() {
               }}
               className={`whitespace-nowrap border-b-2 px-1 py-2 text-sm font-medium ${
                 tab === item.id
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                  ? 'border-[var(--nx-primary)] text-primary'
+                  : 'border-transparent text-muted hover:border-line-strong hover:text-foreground'
               }`}
             >
               {item.label}
@@ -185,68 +190,77 @@ export default function InventoryPage() {
       </div>
 
       {tab === 'stock' && (
-        <section aria-label="Existencias" className="space-y-3">
-          <input
-            value={searchInput}
-            onChange={(event) => setSearchInput(event.target.value)}
-            placeholder="Buscar producto…"
-            className="block w-full max-w-sm rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-          />
+        <section aria-label="Existencias" className="space-y-4">
+          <div className="relative max-w-sm">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint">
+              <Icon name="search" size={16} />
+            </span>
+            <input
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+              placeholder="Buscar producto…"
+              className="nx-input pl-9"
+            />
+          </div>
           <ErrorAlert
             message={stockState.error}
             onRetry={stockState.loading ? undefined : () => void stockState.reload()}
           />
-          <div className="overflow-hidden rounded-lg bg-white shadow">
+          <div className="nx-card overflow-hidden">
             {stockState.loading ? (
-              <p className="px-4 py-10 text-center text-sm text-gray-500">Cargando…</p>
+              <div className="p-5">
+                <LoadingState rows={5} />
+              </div>
             ) : (stockState.data?.total ?? 0) === 0 ? (
-              <EmptyState title="Sin productos activos" />
+              <EmptyState title="Sin productos activos" icon="package" />
             ) : (
               <>
-                <table className="min-w-full divide-y divide-gray-200 text-sm">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-3 text-left font-semibold text-gray-600">Producto</th>
-                      <th className="px-4 py-3 text-right font-semibold text-gray-600">Stock</th>
-                      <th className="hidden px-4 py-3 text-right font-semibold text-gray-600 sm:table-cell">Mínimo</th>
-                      <th className="px-4 py-3 text-left font-semibold text-gray-600">Estado</th>
-                      {canWrite && (
-                        <th className="px-4 py-3 text-right font-semibold text-gray-600">Operaciones</th>
-                      )}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {stockState.data?.items.map((product) => {
-                      const isLow = product.stock <= product.minimum_stock;
-                      return (
-                        <tr key={product.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 font-medium text-gray-900">{product.name}</td>
-                          <td className={`px-4 py-3 text-right ${isLow ? 'font-bold text-red-600' : 'text-gray-800'}`}>
-                            {product.stock}
-                          </td>
-                          <td className="hidden px-4 py-3 text-right text-gray-500 sm:table-cell">
-                            {product.minimum_stock}
-                          </td>
-                          <td className="px-4 py-3">
-                            {isLow ? (
-                              <Badge tone="amber">Reponer</Badge>
-                            ) : (
-                              <Badge tone="green">OK</Badge>
-                            )}
-                          </td>
-                          {canWrite && (
-                            <td className="px-4 py-3 text-right whitespace-nowrap">
-                              <button type="button" onClick={() => openOperation('ENTRY', product)} className="mr-2 rounded bg-green-600 px-2 py-1 text-xs font-semibold text-white hover:bg-green-700">Entrada</button>
-                              <button type="button" onClick={() => openOperation('EXIT', product)} disabled={product.stock === 0} className="mr-2 rounded bg-red-600 px-2 py-1 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-40">Salida</button>
-                              <button type="button" onClick={() => openOperation('RETURN', product)} className="mr-2 rounded bg-blue-600 px-2 py-1 text-xs font-semibold text-white hover:bg-blue-700">Devolución</button>
-                              <button type="button" onClick={() => openOperation('ADJUSTMENT', product)} className="rounded bg-amber-600 px-2 py-1 text-xs font-semibold text-white hover:bg-amber-700">Ajuste</button>
+                <div className="overflow-x-auto">
+                  <table className="nx-table">
+                    <thead>
+                      <tr>
+                        <th>Producto</th>
+                        <th className="text-right">Stock</th>
+                        <th className="hidden text-right sm:table-cell">Mínimo</th>
+                        <th>Estado</th>
+                        {canWrite && (
+                          <th className="text-right">Operaciones</th>
+                        )}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {stockState.data?.items.map((product) => {
+                        const isLow = product.stock <= product.minimum_stock;
+                        return (
+                          <tr key={product.id}>
+                            <td className="font-medium text-foreground">{product.name}</td>
+                            <td className={`text-right ${isLow ? 'font-bold text-red-600 dark:text-red-400' : 'text-foreground'}`}>
+                              {product.stock}
                             </td>
-                          )}
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                            <td className="hidden text-right text-muted sm:table-cell">
+                              {product.minimum_stock}
+                            </td>
+                            <td>
+                              {isLow ? (
+                                <Badge tone="amber">Reponer</Badge>
+                              ) : (
+                                <Badge tone="green">OK</Badge>
+                              )}
+                            </td>
+                            {canWrite && (
+                              <td className="whitespace-nowrap text-right">
+                                <button type="button" onClick={() => openOperation('ENTRY', product)} className="nx-btn nx-btn-sm nx-btn-ghost text-emerald-700 dark:text-emerald-400">Entrada</button>
+                                <button type="button" onClick={() => openOperation('EXIT', product)} disabled={product.stock === 0} className="nx-btn nx-btn-sm nx-btn-ghost text-red-600 dark:text-red-400 disabled:opacity-40">Salida</button>
+                                <button type="button" onClick={() => openOperation('RETURN', product)} className="nx-btn nx-btn-sm nx-btn-ghost text-primary">Devolución</button>
+                                <button type="button" onClick={() => openOperation('ADJUSTMENT', product)} className="nx-btn nx-btn-sm nx-btn-ghost text-amber-700 dark:text-amber-400">Ajuste</button>
+                              </td>
+                            )}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
                 <Pagination page={page} pageSize={PAGE_SIZE} total={stockState.data?.total ?? 0} onChange={setPage} />
               </>
             )}
@@ -255,12 +269,12 @@ export default function InventoryPage() {
       )}
 
       {tab === 'movements' && (
-        <section aria-label="Movimientos" className="space-y-3">
+        <section aria-label="Movimientos" className="space-y-4">
           <select
             value={movementTypeFilter}
             onChange={(event) => setMovementTypeFilter(event.target.value)}
             aria-label="Filtrar por tipo de movimiento"
-            className="block w-full max-w-xs rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+            className="nx-select max-w-xs"
           >
             <option value="">Todos los tipos</option>
             <option value="ENTRY">Entradas</option>
@@ -272,41 +286,45 @@ export default function InventoryPage() {
             message={movementsState.error}
             onRetry={movementsState.loading ? undefined : () => void movementsState.reload()}
           />
-          <div className="overflow-hidden rounded-lg bg-white shadow">
+          <div className="nx-card overflow-hidden">
             {movementsState.loading ? (
-              <p className="px-4 py-10 text-center text-sm text-gray-500">Cargando…</p>
+              <div className="p-5">
+                <LoadingState rows={5} />
+              </div>
             ) : (movementsState.data?.total ?? 0) === 0 ? (
-              <EmptyState title="Sin movimientos registrados" hint="Las entradas, salidas, ajustes y devoluciones aparecerán aquí." />
+              <EmptyState title="Sin movimientos registrados" hint="Las entradas, salidas, ajustes y devoluciones aparecerán aquí." icon="layers" />
             ) : (
               <>
-                <table className="min-w-full divide-y divide-gray-200 text-sm">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-3 text-left font-semibold text-gray-600">Fecha</th>
-                      <th className="px-4 py-3 text-left font-semibold text-gray-600">Tipo</th>
-                      <th className="hidden px-4 py-3 text-right font-semibold text-gray-600 md:table-cell">Anterior</th>
-                      <th className="px-4 py-3 text-right font-semibold text-gray-600">Cantidad</th>
-                      <th className="hidden px-4 py-3 text-right font-semibold text-gray-600 sm:table-cell">Nuevo</th>
-                      <th className="hidden px-4 py-3 text-left font-semibold text-gray-600 lg:table-cell">Motivo</th>
-                      <th className="hidden px-4 py-3 text-left font-semibold text-gray-600 sm:table-cell">Usuario</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {movementsState.data?.items.map((movement) => (
-                      <tr key={movement.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 whitespace-nowrap text-gray-600">{formatDateTime(movement.created_at)}</td>
-                        <td className="px-4 py-3"><Badge tone={MOVEMENT_TONE[movement.movement_type]}>{movementLabel(movement.movement_type)}</Badge></td>
-                        <td className="hidden px-4 py-3 text-right text-gray-400 md:table-cell">{movement.previous_stock}</td>
-                        <td className={`px-4 py-3 text-right font-medium ${movement.movement_type === 'EXIT' ? 'text-red-600' : 'text-green-700'}`}>
-                          {movement.movement_type === 'EXIT' ? '-' : '+'}{movement.quantity}
-                        </td>
-                        <td className="hidden px-4 py-3 text-right font-semibold text-gray-800 sm:table-cell">{movement.new_stock}</td>
-                        <td className="hidden max-w-[200px] truncate px-4 py-3 text-gray-500 lg:table-cell">{movement.reason || '—'}</td>
-                        <td className="hidden px-4 py-3 text-gray-500 sm:table-cell">{movement.created_by_username ?? '—'}</td>
+                <div className="overflow-x-auto">
+                  <table className="nx-table">
+                    <thead>
+                      <tr>
+                        <th>Fecha</th>
+                        <th>Tipo</th>
+                        <th className="hidden text-right md:table-cell">Anterior</th>
+                        <th className="text-right">Cantidad</th>
+                        <th className="hidden text-right sm:table-cell">Nuevo</th>
+                        <th className="hidden lg:table-cell">Motivo</th>
+                        <th className="hidden sm:table-cell">Usuario</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {movementsState.data?.items.map((movement) => (
+                        <tr key={movement.id}>
+                          <td className="whitespace-nowrap text-muted">{formatDateTime(movement.created_at)}</td>
+                          <td><Badge tone={MOVEMENT_TONE[movement.movement_type]}>{movementLabel(movement.movement_type)}</Badge></td>
+                          <td className="hidden text-right text-faint md:table-cell">{movement.previous_stock}</td>
+                          <td className={`text-right font-medium ${movement.movement_type === 'EXIT' ? 'text-red-600 dark:text-red-400' : 'text-emerald-700 dark:text-emerald-400'}`}>
+                            {movement.movement_type === 'EXIT' ? '-' : '+'}{movement.quantity}
+                          </td>
+                          <td className="hidden text-right font-semibold text-foreground sm:table-cell">{movement.new_stock}</td>
+                          <td className="hidden max-w-[200px] truncate text-muted lg:table-cell">{movement.reason || '—'}</td>
+                          <td className="hidden text-muted sm:table-cell">{movement.created_by_username ?? '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
                 <Pagination page={movementPage} pageSize={PAGE_SIZE} total={movementsState.data?.total ?? 0} onChange={setMovementPage} />
               </>
             )}
@@ -315,41 +333,45 @@ export default function InventoryPage() {
       )}
 
       {tab === 'low' && (
-        <section aria-label="Productos con stock bajo" className="space-y-3">
+        <section aria-label="Productos con stock bajo" className="space-y-4">
           <ErrorAlert
             message={lowStockState.error}
             onRetry={lowStockState.loading ? undefined : () => void lowStockState.reload()}
           />
-          <div className="overflow-hidden rounded-lg bg-white shadow">
+          <div className="nx-card overflow-hidden">
             {lowStockState.loading ? (
-              <p className="px-4 py-10 text-center text-sm text-gray-500">Cargando…</p>
+              <div className="p-5">
+                <LoadingState rows={5} />
+              </div>
             ) : (lowStockState.data?.length ?? 0) === 0 ? (
-              <EmptyState title="Ningún producto bajo el mínimo" hint="Todo el inventario está por encima del stock mínimo." />
+              <EmptyState title="Ningún producto bajo el mínimo" hint="Todo el inventario está por encima del stock mínimo." icon="check-circle" />
             ) : (
-              <table className="min-w-full divide-y divide-gray-200 text-sm">
-                <thead className="bg-amber-50">
-                  <tr>
-                    <th className="px-4 py-3 text-left font-semibold text-gray-600">Producto</th>
-                    <th className="hidden px-4 py-3 text-left font-semibold text-gray-600 sm:table-cell">Categoría</th>
-                    <th className="px-4 py-3 text-right font-semibold text-gray-600">Stock</th>
-                    <th className="px-4 py-3 text-right font-semibold text-gray-600">Mínimo</th>
-                    <th className="px-4 py-3 text-left font-semibold text-gray-600">Alerta</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {lowStockState.data?.map((product) => (
-                    <tr key={product.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 font-medium text-gray-900">{product.name}</td>
-                      <td className="hidden px-4 py-3 text-gray-500 sm:table-cell">{product.category.name}</td>
-                      <td className="px-4 py-3 text-right font-bold text-red-600">{product.stock}</td>
-                      <td className="px-4 py-3 text-right text-gray-600">{product.minimum_stock}</td>
-                      <td className="px-4 py-3">
-                        <Badge tone="red">⚠ Reponer urgentemente</Badge>
-                      </td>
+              <div className="overflow-x-auto">
+                <table className="nx-table">
+                  <thead>
+                    <tr>
+                      <th>Producto</th>
+                      <th className="hidden sm:table-cell">Categoría</th>
+                      <th className="text-right">Stock</th>
+                      <th className="text-right">Mínimo</th>
+                      <th>Alerta</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {lowStockState.data?.map((product) => (
+                      <tr key={product.id}>
+                        <td className="font-medium text-foreground">{product.name}</td>
+                        <td className="hidden text-muted sm:table-cell">{product.category.name}</td>
+                        <td className="text-right font-bold text-red-600 dark:text-red-400">{product.stock}</td>
+                        <td className="text-right text-muted">{product.minimum_stock}</td>
+                        <td>
+                          <Badge tone="red">Reponer urgentemente</Badge>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         </section>
@@ -371,4 +393,3 @@ export default function InventoryPage() {
     </div>
   );
 }
-

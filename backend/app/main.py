@@ -7,6 +7,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from app.api.routes.ai import router as ai_router
 from app.api.routes.auth import router as auth_router
 from app.api.routes.cash import router as cash_router
 from app.api.routes.categories import router as categories_router
@@ -69,6 +70,7 @@ app.include_router(receivables_router, prefix="/api")
 app.include_router(sales_router, prefix="/api")
 app.include_router(cash_router, prefix="/api")
 app.include_router(reports_router, prefix="/api")
+app.include_router(ai_router, prefix="/api")
 
 
 @app.exception_handler(AppError)

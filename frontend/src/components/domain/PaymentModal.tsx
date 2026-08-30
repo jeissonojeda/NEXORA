@@ -15,9 +15,6 @@ interface PaymentModalProps {
   onSubmit: (payload: ReceivablePaymentPayload) => void;
 }
 
-const inputClass =
-  'mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none';
-
 const METHODS: { value: PaymentMethod; label: string }[] = [
   { value: 'CASH', label: 'Efectivo' },
   { value: 'CARD', label: 'Tarjeta' },
@@ -72,10 +69,10 @@ export default function PaymentModal({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="rounded-md bg-gray-50 px-3 py-2 text-sm">
+      <div className="rounded-xl border border-line bg-surface px-3 py-2 text-sm">
         <div className="flex justify-between">
-          <span className="text-gray-500">Saldo pendiente</span>
-          <span className="font-semibold tabular-nums text-gray-900">
+          <span className="text-muted">Saldo pendiente</span>
+          <span className="font-semibold tabular-nums text-foreground">
             {formatCurrency(account.balance)}
           </span>
         </div>
@@ -83,7 +80,7 @@ export default function PaymentModal({
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
-          <label htmlFor="payment-amount" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="payment-amount" className="nx-label">
             Monto del abono <span className="text-red-500">*</span>
           </label>
           <input
@@ -94,19 +91,19 @@ export default function PaymentModal({
             max={balance}
             value={amount}
             onChange={(event) => setAmount(event.target.value)}
-            className={inputClass}
+            className="nx-input"
           />
           <InlineError message={fieldErrors.amount} />
         </div>
         <div>
-          <label htmlFor="payment-method" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="payment-method" className="nx-label">
             Método <span className="text-red-500">*</span>
           </label>
           <select
             id="payment-method"
             value={method}
             onChange={(event) => setMethod(event.target.value as PaymentMethod)}
-            className={inputClass}
+            className="nx-select"
           >
             {METHODS.map((option) => (
               <option key={option.value} value={option.value}>
@@ -118,20 +115,20 @@ export default function PaymentModal({
       </div>
 
       <div>
-        <label htmlFor="payment-reference" className="block text-sm font-medium text-gray-700">
+        <label htmlFor="payment-reference" className="nx-label">
           Referencia (N° recibo, voucher, transferencia…)
         </label>
         <input
           id="payment-reference"
           value={reference}
           onChange={(event) => setReference(event.target.value)}
-          className={inputClass}
+          className="nx-input"
         />
         <InlineError message={fieldErrors.reference} />
       </div>
 
       <div>
-        <label htmlFor="payment-notes" className="block text-sm font-medium text-gray-700">
+        <label htmlFor="payment-notes" className="nx-label">
           Notas
         </label>
         <textarea
@@ -139,24 +136,17 @@ export default function PaymentModal({
           rows={2}
           value={notes}
           onChange={(event) => setNotes(event.target.value)}
-          className={inputClass}
+          className="nx-textarea"
         />
       </div>
 
       {error && (
-        <p
-          role="alert"
-          className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
-        >
+        <p role="alert" className="rounded-lg border border-red-300 bg-red-100/60 px-3 py-2 text-sm text-red-800 dark:bg-red-500/10 dark:text-red-300">
           {error}
         </p>
       )}
       <div className="flex justify-end">
-        <button
-          type="submit"
-          disabled={busy}
-          className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
-        >
+        <button type="submit" disabled={busy} className="nx-btn nx-btn-primary">
           {busy ? 'Registrando…' : submitLabel}
         </button>
       </div>

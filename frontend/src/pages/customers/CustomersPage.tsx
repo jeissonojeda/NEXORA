@@ -16,11 +16,11 @@ import Badge from '../../components/ui/Badge';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import EmptyState from '../../components/ui/EmptyState';
 import ErrorAlert from '../../components/ui/ErrorAlert';
+import Icon from '../../components/ui/Icon';
+import LoadingState from '../../components/ui/LoadingState';
 import Modal from '../../components/ui/Modal';
+import PageHeader from '../../components/ui/PageHeader';
 import Pagination from '../../components/ui/Pagination';
-
-const inputClass =
-  'block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none';
 
 const PAGE_SIZE = 10;
 
@@ -115,47 +115,56 @@ export default function CustomersPage() {
   const total = customersState.data?.total ?? 0;
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-xl font-bold text-gray-900">Clientes</h2>
-        {canWrite && (
-          <button
-            type="button"
-            onClick={() => {
-              setEditing(null);
-              setFormError(null);
-              setFormOpen(true);
-            }}
-            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
-          >
-            + Nuevo cliente
-          </button>
-        )}
-      </div>
+    <div className="animate-fade-in space-y-5">
+      <PageHeader
+        title="Clientes"
+        subtitle="Gestiona tus clientes y sus cuentas por cobrar."
+        actions={
+          canWrite && (
+            <button
+              type="button"
+              onClick={() => {
+                setEditing(null);
+                setFormError(null);
+                setFormOpen(true);
+              }}
+              className="nx-btn nx-btn-primary"
+            >
+              <Icon name="plus" size={16} />
+              Nuevo cliente
+            </button>
+          )
+        }
+      />
 
       {/* Filtros */}
-      <div className="grid grid-cols-1 gap-3 rounded-lg bg-white p-4 shadow sm:grid-cols-2 lg:grid-cols-4">
+      <div className="nx-card grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="sm:col-span-2">
-          <label htmlFor="customer-search" className="block text-xs font-medium text-gray-500">
-            Buscar por nombre, identificación, email o teléfono
+          <label htmlFor="customer-search" className="nx-label">
+            Buscar (nombre, identificación, email o teléfono)
           </label>
-          <input
-            id="customer-search"
-            value={searchInput}
-            onChange={(event) => setSearchInput(event.target.value)}
-            placeholder="Ej. Juan Pérez, 1090…, juan@…"
-            className={`mt-1 ${inputClass}`}
-          />
+          <div className="relative">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint">
+              <Icon name="search" size={16} />
+            </span>
+            <input
+              id="customer-search"
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+              placeholder="Ej. Juan Pérez, 1090…, juan@…"
+              className="nx-input pl-9"
+            />
+          </div>
         </div>
         <div>
-          <label htmlFor="customer-status" className="block text-xs font-medium text-gray-500">
+          <label htmlFor="customer-status" className="nx-label">
             Estado
           </label>
           <select
             id="customer-status"
             value={statusFilter}
             onChange={(event) => changeStatus(event.target.value)}
-            className={`mt-1 ${inputClass}`}
+            className="nx-select"
           >
             <option value="all">Todos</option>
             <option value="active">Activos</option>
@@ -163,14 +172,14 @@ export default function CustomersPage() {
           </select>
         </div>
         <div>
-          <label htmlFor="customer-credit" className="block text-xs font-medium text-gray-500">
+          <label htmlFor="customer-credit" className="nx-label">
             Crédito
           </label>
           <select
             id="customer-credit"
             value={creditFilter}
             onChange={(event) => changeCredit(event.target.value)}
-            className={`mt-1 ${inputClass}`}
+            className="nx-select"
           >
             <option value="all">Todos</option>
             <option value="credit">Con crédito</option>
@@ -186,109 +195,109 @@ export default function CustomersPage() {
         }
       />
 
-      <div className="overflow-hidden rounded-lg bg-white shadow">
+      <div className="nx-card overflow-hidden">
         {customersState.loading ? (
-          <p className="px-4 py-10 text-center text-sm text-gray-500">Cargando…</p>
+          <div className="p-5">
+            <LoadingState rows={6} />
+          </div>
         ) : total === 0 ? (
           <EmptyState
             title="Sin clientes"
             hint="Ajusta la búsqueda o crea el primer cliente."
+            icon="users"
           />
         ) : (
           <>
-            <table className="min-w-full divide-y divide-gray-200 text-sm">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-600">Nombre</th>
-                  <th className="hidden px-4 py-3 text-left font-semibold text-gray-600 md:table-cell">
-                    Identificación
-                  </th>
-                  <th className="hidden px-4 py-3 text-left font-semibold text-gray-600 md:table-cell">
-                    Teléfono
-                  </th>
-                  <th className="px-4 py-3 text-right font-semibold text-gray-600">
-                    Saldo actual
-                  </th>
-                  <th className="hidden px-4 py-3 text-right font-semibold text-gray-600 sm:table-cell">
-                    Disponible
-                  </th>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-600">Crédito</th>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-600">Estado</th>
-                  <th className="px-4 py-3 text-right font-semibold text-gray-600">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {customersState.data?.items.map((customer) => (
-                  <tr key={customer.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-medium text-gray-900">{customer.name}</td>
-                    <td className="hidden px-4 py-3 font-mono text-xs text-gray-500 md:table-cell">
-                      {customer.identification || '—'}
-                    </td>
-                    <td className="hidden px-4 py-3 text-gray-600 md:table-cell">
-                      {customer.phone || '—'}
-                    </td>
-                    <td className="px-4 py-3 text-right tabular-nums text-gray-800">
-                      {formatCurrency(customer.current_balance)}
-                    </td>
-                    <td className="hidden px-4 py-3 text-right tabular-nums text-gray-800 sm:table-cell">
-                      {customer.credit_enabled
-                        ? formatCurrency(customer.credit_available)
-                        : '—'}
-                    </td>
-                    <td className="px-4 py-3">
-                      {customer.credit_enabled ? (
-                        <Badge tone="blue">Con crédito</Badge>
-                      ) : (
-                        <Badge tone="gray">Contado</Badge>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      {customer.is_active ? (
-                        <Badge tone="green">Activo</Badge>
-                      ) : (
-                        <Badge tone="red">Inactivo</Badge>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-right whitespace-nowrap">
-                      <button
-                        type="button"
-                        onClick={() => navigate(`${ROUTES.CUSTOMERS}/${customer.id}`)}
-                        className="mr-2 text-sm font-medium text-gray-600 hover:text-gray-800"
-                      >
-                        Ver
-                      </button>
-                      {canWrite && (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditing(customer);
-                              setFormError(null);
-                              setFormOpen(true);
-                            }}
-                            className="mr-2 text-sm font-medium text-blue-600 hover:text-blue-800"
-                          >
-                            Editar
-                          </button>
-                          {canDelete && customer.is_active && (
+            <div className="overflow-x-auto">
+              <table className="nx-table">
+                <thead>
+                  <tr>
+                    <th>Nombre</th>
+                    <th className="hidden md:table-cell">Identificación</th>
+                    <th className="hidden md:table-cell">Teléfono</th>
+                    <th className="text-right">Saldo actual</th>
+                    <th className="hidden text-right sm:table-cell">Disponible</th>
+                    <th>Crédito</th>
+                    <th>Estado</th>
+                    <th className="text-right">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {customersState.data?.items.map((customer) => (
+                    <tr key={customer.id}>
+                      <td className="font-medium text-foreground">{customer.name}</td>
+                      <td className="hidden font-mono text-xs text-muted md:table-cell">
+                        {customer.identification || '—'}
+                      </td>
+                      <td className="hidden text-muted md:table-cell">
+                        {customer.phone || '—'}
+                      </td>
+                      <td className="text-right tabular-nums text-foreground">
+                        {formatCurrency(customer.current_balance)}
+                      </td>
+                      <td className="hidden text-right tabular-nums text-foreground sm:table-cell">
+                        {customer.credit_enabled
+                          ? formatCurrency(customer.credit_available)
+                          : '—'}
+                      </td>
+                      <td>
+                        {customer.credit_enabled ? (
+                          <Badge tone="blue">Con crédito</Badge>
+                        ) : (
+                          <Badge tone="gray">Contado</Badge>
+                        )}
+                      </td>
+                      <td>
+                        {customer.is_active ? (
+                          <Badge tone="green">Activo</Badge>
+                        ) : (
+                          <Badge tone="red">Inactivo</Badge>
+                        )}
+                      </td>
+                      <td className="whitespace-nowrap text-right">
+                        <button
+                          type="button"
+                          onClick={() => navigate(`${ROUTES.CUSTOMERS}/${customer.id}`)}
+                          className="nx-btn nx-btn-sm nx-btn-ghost text-primary"
+                        >
+                          <Icon name="eye" size={14} />
+                          Ver
+                        </button>
+                        {canWrite && (
+                          <>
                             <button
                               type="button"
                               onClick={() => {
-                                setDeactivateError(null);
-                                setDeactivating(customer);
+                                setEditing(customer);
+                                setFormError(null);
+                                setFormOpen(true);
                               }}
-                              className="text-sm font-medium text-red-600 hover:text-red-800"
+                              className="nx-btn nx-btn-sm nx-btn-ghost text-primary"
                             >
-                              Desactivar
+                              <Icon name="pencil" size={14} />
+                              Editar
                             </button>
-                          )}
-                        </>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                            {canDelete && customer.is_active && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setDeactivateError(null);
+                                  setDeactivating(customer);
+                                }}
+                                className="nx-btn nx-btn-sm nx-btn-ghost text-red-600 dark:text-red-400"
+                              >
+                                <Icon name="trash" size={14} />
+                                Desactivar
+                              </button>
+                            )}
+                          </>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
             <Pagination
               page={page}
               pageSize={PAGE_SIZE}

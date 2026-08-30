@@ -11,24 +11,26 @@ import {
   updateProduct,
 } from '../../services/products';
 import type { ApiProduct, ProductFormValues } from '../../types/catalog';
+import { formatCurrency } from '../../utils/format';
+import { userHasPermission } from '../../utils/permissions';
 import Badge from '../../components/ui/Badge';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import EmptyState from '../../components/ui/EmptyState';
 import ErrorAlert, { InlineError } from '../../components/ui/ErrorAlert';
+import LoadingState from '../../components/ui/LoadingState';
 import Pagination from '../../components/ui/Pagination';
 import Modal from '../../components/ui/Modal';
+import PageHeader from '../../components/ui/PageHeader';
+import Icon from '../../components/ui/Icon';
 import ProductForm from '../../components/domain/ProductForm';
-
-const inputClass =
-  'block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none';
 
 const PAGE_SIZE = 10;
 
 export default function ProductsPage() {
   const { user } = useAuth();
   const canWrite =
-    user?.roles.some((role) => ['ADMIN', 'INVENTORY_MANAGER'].includes(role.name)) ??
-    false;
+    userHasPermission(user, 'products.create') ||
+    userHasPermission(user, 'products.update');
 
   const categoriesState = useAsync(() => listCategories(), []);
   const suppliersState = useAsync(
@@ -141,11 +143,11 @@ export default function ProductsPage() {
       const product = await getProductByBarcode(barcodeLookup);
       setBarcodeResult(product);
     } catch (err) {
+      const message = extractErrorMessage(err);
       setBarcodeError(
-        extractErrorMessage(err).includes('not found') ||
-          extractErrorMessage(err).includes('No existe')
+        message.includes('not found') || message.includes('No existe')
           ? `No hay producto activo con código ${barcodeLookup}`
-          : extractErrorMessage(err),
+          : message,
       );
     } finally {
       setLookupBusy(false);
@@ -155,47 +157,56 @@ export default function ProductsPage() {
   const total = productsState.data?.total ?? 0;
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-xl font-bold text-gray-900">Productos</h2>
-        {canWrite && (
-          <button
-            type="button"
-            onClick={() => {
-              setEditing(null);
-              setFormError(null);
-              setFormOpen(true);
-            }}
-            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
-          >
-            + Nuevo producto
-          </button>
-        )}
-      </div>
+    <div className="animate-fade-in space-y-5">
+      <PageHeader
+        title="Productos"
+        subtitle="Catálogo, códigos de barras y precios."
+        actions={
+          canWrite && (
+            <button
+              type="button"
+              onClick={() => {
+                setEditing(null);
+                setFormError(null);
+                setFormOpen(true);
+              }}
+              className="nx-btn nx-btn-primary"
+            >
+              <Icon name="plus" size={16} />
+              Nuevo producto
+            </button>
+          )
+        }
+      />
 
       {/* Filtros */}
-      <div className="grid grid-cols-1 gap-3 rounded-lg bg-white p-4 shadow sm:grid-cols-2 lg:grid-cols-5">
+      <div className="nx-card grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 lg:grid-cols-5">
         <div className="lg:col-span-2">
-          <label htmlFor="filter-search" className="block text-xs font-medium text-gray-500">
+          <label htmlFor="filter-search" className="nx-label">
             Buscar (nombre o código)
           </label>
-          <input
-            id="filter-search"
-            value={searchInput}
-            onChange={(event) => setSearchInput(event.target.value)}
-            placeholder="Ej. leche o 750123…"
-            className={`mt-1 ${inputClass}`}
-          />
+          <div className="relative">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint">
+              <Icon name="search" size={16} />
+            </span>
+            <input
+              id="filter-search"
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+              placeholder="Ej. leche o 750123…"
+              className="nx-input pl-9"
+            />
+          </div>
         </div>
         <div>
-          <label htmlFor="filter-category" className="block text-xs font-medium text-gray-500">
+          <label htmlFor="filter-category" className="nx-label">
             Categoría
           </label>
           <select
             id="filter-category"
             value={categoryId}
             onChange={(event) => changeCategory(event.target.value)}
-            className={`mt-1 ${inputClass}`}
+            className="nx-select"
           >
             <option value="">Todas</option>
             {categoriesState.data?.map((category) => (
@@ -206,14 +217,14 @@ export default function ProductsPage() {
           </select>
         </div>
         <div>
-          <label htmlFor="filter-supplier" className="block text-xs font-medium text-gray-500">
+          <label htmlFor="filter-supplier" className="nx-label">
             Proveedor
           </label>
           <select
             id="filter-supplier"
             value={supplierId}
             onChange={(event) => changeSupplier(event.target.value)}
-            className={`mt-1 ${inputClass}`}
+            className="nx-select"
           >
             <option value="">Todos</option>
             {suppliersState.data?.items.map((supplier) => (
@@ -224,27 +235,27 @@ export default function ProductsPage() {
           </select>
         </div>
         <div>
-          <label htmlFor="filter-status" className="block text-xs font-medium text-gray-500">
+          <label htmlFor="filter-status" className="nx-label">
             Estado
           </label>
           <select
             id="filter-status"
             value={statusFilter}
             onChange={(event) => changeStatus(event.target.value)}
-            className={`mt-1 ${inputClass}`}
+            className="nx-select"
           >
             <option value="all">Todos</option>
             <option value="active">Activos</option>
             <option value="inactive">Inactivos</option>
           </select>
         </div>
-        <div className="flex items-end">
-          <label className="flex items-center gap-2 text-sm text-gray-600">
+        <div className="flex items-end pb-1">
+          <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-muted">
             <input
               type="checkbox"
               checked={lowStockOnly}
               onChange={(event) => changeLowStockOnly(event.target.checked)}
-              className="rounded border-gray-300"
+              className="h-4 w-4 rounded border-line-strong accent-[var(--nx-primary)]"
             />
             Solo stock bajo
           </label>
@@ -254,46 +265,54 @@ export default function ProductsPage() {
       {/* Consulta por código de barras */}
       <form
         onSubmit={(event) => void handleBarcodeLookup(event)}
-        className="flex flex-wrap items-start gap-3 rounded-lg bg-white p-4 shadow"
+        className="nx-card flex flex-wrap items-start gap-3 p-4"
       >
         <div className="min-w-[220px] flex-1">
-          <label htmlFor="barcode-lookup" className="block text-xs font-medium text-gray-500">
+          <label htmlFor="barcode-lookup" className="nx-label">
             Escáner / consulta por código de barras
           </label>
-          <input
-            id="barcode-lookup"
-            value={barcodeLookup}
-            onChange={(event) => setBarcodeLookup(event.target.value)}
-            placeholder="Escanea o digita el código y presiona Enter"
-            autoComplete="off"
-            className={`mt-1 ${inputClass}`}
-          />
+          <div className="relative">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint">
+              <Icon name="scan" size={16} />
+            </span>
+            <input
+              id="barcode-lookup"
+              value={barcodeLookup}
+              onChange={(event) => setBarcodeLookup(event.target.value)}
+              placeholder="Escanea o digita el código y presiona Enter"
+              autoComplete="off"
+              className="nx-input pl-9"
+            />
+          </div>
         </div>
-        <button
-          type="submit"
-          disabled={lookupBusy}
-          className="mt-5 rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60"
-        >
+        <button type="submit" disabled={lookupBusy} className="nx-btn nx-btn-secondary">
+          <Icon name="scan" size={16} />
           {lookupBusy ? 'Buscando…' : 'Consultar'}
         </button>
         {barcodeError && <InlineError message={barcodeError} />}
       </form>
 
       {barcodeResult && (
-        <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-900">
-          <p className="font-semibold">{barcodeResult.name}</p>
-          <p className="mt-1">
-            Stock: {barcodeResult.stock} · Precio:{' '}
-            {Number(barcodeResult.sale_price).toFixed(2)} · Categoría:{' '}
-            {barcodeResult.category.name}
-          </p>
+        <div className="nx-card flex items-center gap-3 border-emerald-300 bg-emerald-100/50 p-4 text-sm dark:bg-emerald-500/10 dark:text-emerald-200">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
+            <Icon name="check" size={20} />
+          </span>
+          <div>
+            <p className="font-semibold text-emerald-900 dark:text-emerald-200">
+              {barcodeResult.name}
+            </p>
+            <p className="text-emerald-800 dark:text-emerald-300">
+              Stock: {barcodeResult.stock} · Precio:{' '}
+              {formatCurrency(barcodeResult.sale_price)} · Categoría:{' '}
+              {barcodeResult.category.name}
+            </p>
+          </div>
         </div>
       )}
 
       <ErrorAlert
         message={
           productsState.error ??
-          barcodeError ??
           categoriesState.error ??
           suppliersState.error ??
           null
@@ -303,107 +322,113 @@ export default function ProductsPage() {
         }
       />
 
-      <div className="overflow-hidden rounded-lg bg-white shadow">
+      <div className="nx-card overflow-hidden">
         {productsState.loading ? (
-          <p className="px-4 py-10 text-center text-sm text-gray-500">Cargando…</p>
+          <div className="p-5">
+            <LoadingState rows={6} />
+          </div>
         ) : total === 0 ? (
-          <EmptyState title="Sin productos" hint="Ajusta los filtros o crea un producto." />
+          <EmptyState
+            title="Sin productos"
+            hint="Ajusta los filtros o crea un producto."
+            icon="package"
+          />
         ) : (
           <>
-            <table className="min-w-full divide-y divide-gray-200 text-sm">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-600">Producto</th>
-                  <th className="hidden px-4 py-3 text-left font-semibold text-gray-600 md:table-cell">
-                    Código
-                  </th>
-                  <th className="hidden px-4 py-3 text-left font-semibold text-gray-600 sm:table-cell">
-                    Categoría
-                  </th>
-                  <th className="hidden px-4 py-3 text-left font-semibold text-gray-600 md:table-cell">
-                    Proveedor
-                  </th>
-                  <th className="px-4 py-3 text-right font-semibold text-gray-600">Precio venta</th>
-                  <th className="px-4 py-3 text-right font-semibold text-gray-600">Stock</th>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-600">Estado</th>
-                  {canWrite && (
-                    <th className="px-4 py-3 text-right font-semibold text-gray-600">Acciones</th>
-                  )}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {productsState.data?.items.map((product) => {
-                  const isLow =
-                    product.stock <= product.minimum_stock && product.is_active;
-                  return (
-                    <tr key={product.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3">
-                        <p className="font-medium text-gray-900">{product.name}</p>
-                        {product.description && (
-                          <p className="max-w-xs truncate text-xs text-gray-400">
-                            {product.description}
-                          </p>
-                        )}
-                      </td>
-                      <td className="hidden px-4 py-3 font-mono text-xs text-gray-500 md:table-cell">
-                        {product.barcode || '—'}
-                      </td>
-                      <td className="hidden px-4 py-3 text-gray-600 sm:table-cell">
-                        {product.category.name}
-                      </td>
-                      <td className="hidden max-w-[160px] truncate px-4 py-3 text-gray-600 md:table-cell">
-                        {product.supplier?.name ?? '—'}
-                      </td>
-                      <td className="px-4 py-3 text-right text-gray-800">
-                        ₡{Number(product.sale_price).toLocaleString('es-CR', { minimumFractionDigits: 2 })}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <span className={isLow ? 'font-bold text-red-600' : 'text-gray-800'}>
-                          {product.stock}
-                        </span>
-                        <span className="ml-1 text-xs text-gray-400">/ min {product.minimum_stock}</span>
-                      </td>
-                      <td className="px-4 py-3">
-                        {isLow ? (
-                          <Badge tone="amber">Stock bajo</Badge>
-                        ) : product.is_active ? (
-                          <Badge tone="green">Activo</Badge>
-                        ) : (
-                          <Badge tone="red">Inactivo</Badge>
-                        )}
-                      </td>
-                      {canWrite && (
-                        <td className="px-4 py-3 text-right whitespace-nowrap">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditing(product);
-                              setFormError(null);
-                              setFormOpen(true);
-                            }}
-                            className="mr-2 text-sm font-medium text-blue-600 hover:text-blue-800"
+            <div className="overflow-x-auto">
+              <table className="nx-table">
+                <thead>
+                  <tr>
+                    <th>Producto</th>
+                    <th className="hidden md:table-cell">Código</th>
+                    <th className="hidden sm:table-cell">Categoría</th>
+                    <th className="hidden md:table-cell">Proveedor</th>
+                    <th className="text-right">Precio venta</th>
+                    <th className="text-right">Stock</th>
+                    <th>Estado</th>
+                    {canWrite && <th className="text-right">Acciones</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {productsState.data?.items.map((product) => {
+                    const isLow =
+                      product.stock <= product.minimum_stock && product.is_active;
+                    return (
+                      <tr key={product.id}>
+                        <td>
+                          <p className="font-medium text-foreground">{product.name}</p>
+                          {product.description && (
+                            <p className="max-w-xs truncate text-xs text-faint">
+                              {product.description}
+                            </p>
+                          )}
+                        </td>
+                        <td className="hidden font-mono text-xs text-muted md:table-cell">
+                          {product.barcode || '—'}
+                        </td>
+                        <td className="hidden text-muted sm:table-cell">
+                          {product.category.name}
+                        </td>
+                        <td className="hidden max-w-[160px] truncate text-muted md:table-cell">
+                          {product.supplier?.name ?? '—'}
+                        </td>
+                        <td className="text-right font-medium text-foreground">
+                          {formatCurrency(product.sale_price)}
+                        </td>
+                        <td className="text-right">
+                          <span
+                            className={isLow ? 'font-bold text-red-600 dark:text-red-400' : 'text-foreground'}
                           >
-                            Editar
-                          </button>
-                          {product.is_active && (
+                            {product.stock}
+                          </span>
+                          <span className="ml-1 text-xs text-faint">
+                            / min {product.minimum_stock}
+                          </span>
+                        </td>
+                        <td>
+                          {isLow ? (
+                            <Badge tone="amber">Stock bajo</Badge>
+                          ) : product.is_active ? (
+                            <Badge tone="green">Activo</Badge>
+                          ) : (
+                            <Badge tone="red">Inactivo</Badge>
+                          )}
+                        </td>
+                        {canWrite && (
+                          <td className="whitespace-nowrap text-right">
                             <button
                               type="button"
                               onClick={() => {
-                                setDeactivateError(null);
-                                setDeactivating(product);
+                                setEditing(product);
+                                setFormError(null);
+                                setFormOpen(true);
                               }}
-                              className="text-sm font-medium text-red-600 hover:text-red-800"
+                              className="nx-btn nx-btn-sm nx-btn-ghost text-primary"
                             >
-                              Desactivar
+                              <Icon name="pencil" size={14} />
+                              Editar
                             </button>
-                          )}
-                        </td>
-                      )}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                            {product.is_active && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setDeactivateError(null);
+                                  setDeactivating(product);
+                                }}
+                                className="nx-btn nx-btn-sm nx-btn-ghost text-red-600 dark:text-red-400"
+                              >
+                                <Icon name="trash" size={14} />
+                                Desactivar
+                              </button>
+                            )}
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
             <Pagination
               page={page}
               pageSize={PAGE_SIZE}

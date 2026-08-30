@@ -172,54 +172,39 @@ frontend/
 ├── src/
 │   ├── main.tsx                 # Punto de entrada
 │   ├── App.tsx                  # Router principal
+│   ├── index.css                # Tailwind v4 + tokens de diseño (.nx-*)
 │   ├── components/
-│   │   ├── ui/                  # Botones, inputs, modales genéricos
-│   │   ├── layout/
-│   │   │   ├── Sidebar.tsx
-│   │   │   ├── Header.tsx
-│   │   │   └── Layout.tsx
-│   │   └── domain/              # Componentes específicos de dominio
-│   ├── pages/
-│   │   ├── auth/
-│   │   │   ├── LoginPage.tsx
-│   │   │   └── RegisterPage.tsx
-│   │   ├── dashboard/
-│   │   │   └── DashboardPage.tsx
-│   │   ├── products/
-│   │   ├── inventory/
-│   │   ├── sales/
-│   │   ├── customers/
-│   │   ├── suppliers/
-│   │   ├── cash-register/
-│   │   ├── reports/
-│   │   ├── ai/
-│   │   └── users/
-│   ├── services/                # Llamadas API (Axios)
+│   │   ├── ui/                  # Badge, Button, Modal, PageHeader, KpiCard,
+│   │   │                        # LoadingState, EmptyState, ErrorAlert,
+│   │   │                        # ConfirmDialog, Pagination, Icon, ThemeToggle
+│   │   └── domain/              # Formularios y modales específicos de dominio
+│   ├── pages/                   # Una carpeta por módulo:
+│   │   ├── auth/                # LoginPage
+│   │   ├── home/                # HomePage (dashboard con KPIs + caja)
+│   │   ├── products/            # ProductsPage
+│   │   ├── inventory/           # InventoryPage
+│   │   ├── categories/          # CategoriesPage
+│   │   ├── suppliers/           # SuppliersPage
+│   │   ├── purchases/           # PurchasesPage + PurchaseDetailPage
+│   │   ├── customers/           # CustomersPage + CustomerDetailPage + ReceivablesPage
+│   │   ├── sales/               # PointOfSalePage + SalesPage + SaleDetailPage
+│   │   ├── cash/                # CashPage
+│   │   ├── reports/             # ReportsPage
+│   │   └── ai/                  # AIPage
+│   ├── layouts/                 # MainLayout (sidebar colapsable/drawer + header)
+│   ├── services/                # Llamadas API (Axios), una por dominio
 │   │   ├── api.ts               # Instancia Axios, interceptores
-│   │   ├── authService.ts
-│   │   ├── productService.ts
+│   │   ├── auth.ts
+│   │   ├── products.ts
 │   │   └── ...
-│   ├── hooks/                   # Custom hooks
-│   │   ├── useAuth.ts
-│   │   └── usePagination.ts
-│   ├── contexts/
-│   │   └── AuthContext.tsx
-│   ├── types/                   # Interfaces TypeScript
-│   │   └── index.ts
-│   ├── utils/
-│   │   ├── formatters.ts
-│   │   └── validators.ts
-│   └── routes/
-│       ├── AppRouter.tsx
-│       └── ProtectedRoute.tsx
-├── public/
+│   ├── hooks/                   # useAsync, useHealth, useDashboard
+│   ├── contexts/                # AuthContext (JWT) + ThemeContext (dark/light)
+│   ├── types/                   # Interfaces TypeScript por dominio
+│   ├── utils/                   # format.ts (formatCurrency) + permissions.ts
+│   └── routes/                  # index.ts (rutas protegidas)
 ├── index.html
 ├── package.json
-├── tsconfig.json
-├── vite.config.ts
-├── tailwind.config.js
-├── postcss.config.js
-└── .env.example
+└── vite.config.ts               # @tailwindcss/vite (Tailwind v4, sin configs)
 ```
 
 ---
@@ -307,8 +292,14 @@ El frontend es una SPA construida con React + Vite + TypeScript.
 ### Enrutamiento
 
 - React Router v6.
-- Rutas protegidas que verifican autenticación y rol.
-- Layout con sidebar que varía según el rol del usuario.
+- Rutas protegidas que verifican autenticación y permiso (`require_permission` en el backend, `userHasPermission` en el frontend).
+- `MainLayout` con sidebar colapsable/drawer que varía según el rol del usuario.
+
+### Tema y branding
+
+- Marca **NEXORA** con tema oscuro/claro (`ThemeContext`).
+- La preferencia persiste en `localStorage` (key `nexora-theme`); la clase `dark` se aplica en `<html>` junto a tokens de diseño `.nx-*` (Tailwind v4, sin archivos de configuración).
+- Iconos: set SVG propio (`components/ui/Icon.tsx`); no se usan librerías de iconos.
 
 ---
 
@@ -923,13 +914,31 @@ VITE_API_URL=http://localhost:8000/api
 - [x] Frontend: `/caja` (apertura, resumen, movimientos, ingreso/egreso, cierre)
 - [x] Tests: 52 nuevos (`tests/test_cash.py`) + E2E HTTP (34 checks)
 
-### Fase 9 — Reportes e IA
-- [x] Reportes en PDF y Excel (implementada; IA queda para la siguiente fase)
-- [ ] Integración OpenAI
-- [ ] Análisis de ventas, predicción de demanda, recomendaciones
-- [ ] Dashboard y módulo IA
+### Fase 9 — Reportes e IA ✅
+- [x] Reportes en PDF y Excel (9 tipos) + vista previa JSON
+- [x] Integración OpenAI (`backend/app/ai`)
+- [x] Análisis de ventas, predicción de demanda, recomendaciones de inventario
+- [x] Dashboard (KPIs) y módulo IA
+- [x] Frontend: `/reportes` + `/ia` (rutas protegidas por permiso)
 
-### Fase 10 — Pulido y Despliegue
+### Fase 10 — IA (módulo de análisis) ✅
+- [x] Endpoints de IA en `backend/app/ai` protegidos por RBAC (`ai.*`)
+- [x] Página `/ia` del frontend con análisis, tendencias e historial
+
+### Fase 11 — Rediseño UX/UI Profesional (NEXORA) ✅
+- [x] Marca **NEXORA** y tema oscuro/claro (`ThemeContext`, key `nexora-theme`,
+      clase `dark` en `<html>`, tokens `.nx-*` con Tailwind v4)
+- [x] Sistema de componentes UI propio (`components/ui/*`) y set de iconos SVG
+      propio (`Icon.tsx`) sin librerías externas
+- [x] Rediseño del dashboard (KPIs, incl. "Caja — efectivo esperado"),
+      login y todas las páginas de módulos (transiciones, estados de carga,
+      tablas responsive con `overflow-x-auto`, Badge por estado)
+- [x] `MainLayout` con sidebar colapsable/drawer y ThemeToggle
+- [x] Consistencia RBAC en la UI (`utils/permissions.ts`), filtros y
+      estados de exportación deshabilitados cuando no hay datos
+- [x] Búsqueda con debounce en POS y listado de ventas
+
+### Fase 12 — Pulido y Despliegue (pendiente)
 - [ ] Auditoría de operaciones
 - [ ] Optimización y seguridad
 - [ ] Despliegue backend/frontend

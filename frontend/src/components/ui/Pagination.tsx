@@ -1,3 +1,5 @@
+import Icon from './Icon';
+
 interface PaginationProps {
   page: number;
   pageSize: number;
@@ -14,27 +16,36 @@ export default function Pagination({
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   if (totalPages <= 1) return null;
 
+  const from = (page - 1) * pageSize + 1;
+  const to = Math.min(page * pageSize, total);
+
   return (
-    <div className="flex items-center justify-between border-t border-gray-200 px-4 py-3">
-      <p className="text-sm text-gray-500">
-        Página {page} de {totalPages} — {total} registros
+    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-5 py-4">
+      <p className="text-sm text-muted">
+        Mostrando <span className="font-semibold text-foreground">{from}–{to}</span> de{' '}
+        <span className="font-semibold text-foreground">{total}</span> registros
       </p>
-      <div className="flex gap-2">
+      <div className="flex items-center gap-2">
         <button
           type="button"
           disabled={page <= 1}
           onClick={() => onChange(page - 1)}
-          className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40"
+          className="nx-btn nx-btn-sm nx-btn-secondary"
         >
+          <Icon name="chevron-left" size={14} />
           Anterior
         </button>
+        <span className="min-w-20 text-center text-sm text-muted">
+          {page} / {totalPages}
+        </span>
         <button
           type="button"
           disabled={page >= totalPages}
           onClick={() => onChange(page + 1)}
-          className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40"
+          className="nx-btn nx-btn-sm nx-btn-secondary"
         >
           Siguiente
+          <Icon name="chevron-right" size={14} />
         </button>
       </div>
     </div>

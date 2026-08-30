@@ -9,7 +9,7 @@ import {
   listRegisters,
   openRegister,
 } from '../../services/cash';
-import type { RegisterStatus } from '../../types/cash';
+import type { CashMovementType, RegisterStatus } from '../../types/cash';
 import {
   cashPaymentMethodLabel,
   movementTypeLabel,
@@ -17,13 +17,12 @@ import {
 } from '../../types/cash';
 import Badge from '../../components/ui/Badge';
 import EmptyState from '../../components/ui/EmptyState';
+import LoadingState from '../../components/ui/LoadingState';
 import ErrorAlert from '../../components/ui/ErrorAlert';
 import Modal from '../../components/ui/Modal';
+import PageHeader from '../../components/ui/PageHeader';
 import Pagination from '../../components/ui/Pagination';
 import { formatCurrency, formatDateTime } from '../../utils/format';
-
-const inputClass =
-  'block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none';
 
 const PAGE_SIZE = 10;
 
@@ -31,6 +30,15 @@ const REGISTER_STATUS_TONE: Record<RegisterStatus, 'green' | 'gray' | 'red'> = {
   OPEN: 'green',
   CLOSED: 'gray',
   CANCELLED: 'red',
+};
+
+const MOVEMENT_TYPE_TONE: Record<CashMovementType, 'blue' | 'green' | 'red' | 'amber'> = {
+  OPENING: 'blue',
+  SALE: 'green',
+  RECEIVABLE_PAYMENT: 'green',
+  CASH_IN: 'green',
+  CASH_OUT: 'red',
+  ADJUSTMENT: 'amber',
 };
 
 type ManualKind = 'CASH_IN' | 'CASH_OUT';
@@ -45,21 +53,11 @@ function SummaryCard({
   accent?: boolean;
 }) {
   return (
-    <div
-      className={`rounded-lg p-4 shadow ${
-        accent ? 'bg-blue-600 text-white' : 'bg-white'
-      }`}
-    >
-      <p
-        className={`text-xs font-medium uppercase tracking-wide ${
-          accent ? 'text-blue-100' : 'text-gray-500'
-        }`}
-      >
+    <div className={`nx-card p-4 ${accent ? 'nx-brand-gradient text-white' : ''}`}>
+      <p className={`text-xs font-medium uppercase tracking-wide ${accent ? 'text-white/80' : 'text-muted'}`}>
         {label}
       </p>
-      <p
-        className={`mt-1 text-lg font-bold ${accent ? '' : 'text-gray-900'}`}
-      >
+      <p className={`mt-1 text-lg font-bold tabular-nums ${accent ? '' : 'text-foreground'}`}>
         {value}
       </p>
     </div>
@@ -108,7 +106,7 @@ export default function CashPage() {
   if (!canOperate) {
     return (
       <div className="space-y-4">
-        <h2 className="text-xl font-bold text-gray-900">Caja</h2>
+        <PageHeader title="Caja" subtitle="Operación del turno y control de efectivo." />
         <ErrorAlert message="No tienes permisos para operar la caja." />
       </div>
     );
@@ -185,23 +183,26 @@ export default function CashPage() {
   const preview = differencePreview();
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-xl font-bold text-gray-900">Caja</h2>
-        {current ? (
-          <Badge tone={REGISTER_STATUS_TONE[current.status]}>
-            {registerStatusLabel(current.status)}
-          </Badge>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setOpenModal(true)}
-            className="rounded-md bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700"
-          >
-            Abrir caja
-          </button>
-        )}
-      </div>
+    <div className="animate-fade-in space-y-4">
+      <PageHeader
+        title="Caja"
+        subtitle="Operación del turno y control de efectivo esperado."
+        actions={
+          current ? (
+            <Badge tone={REGISTER_STATUS_TONE[current.status]}>
+              {registerStatusLabel(current.status)}
+            </Badge>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setOpenModal(true)}
+              className="nx-btn nx-btn-success"
+            >
+              Abrir caja
+            </button>
+          )
+        }
+      />
 
       {actionError && <ErrorAlert message={actionError} />}
       {registerState.error && (
@@ -209,7 +210,7 @@ export default function CashPage() {
       )}
 
       {!registerState.loading && !current && (
-        <div className="rounded-lg bg-white p-6 shadow">
+        <div className="nx-card p-6">
           <EmptyState
             title="No hay caja abierta"
             hint="Abre la caja con un monto inicial para comenzar el turno."
@@ -266,7 +267,7 @@ export default function CashPage() {
                 setManualAmount('');
                 setManualDescription('');
               }}
-              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+              className="nx-btn nx-btn-primary"
             >
               + Registrar ingreso
             </button>
@@ -277,7 +278,7 @@ export default function CashPage() {
                 setManualAmount('');
                 setManualDescription('');
               }}
-              className="rounded-md bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700"
+              className="nx-btn nx-btn-secondary text-amber-600 dark:text-amber-400"
             >
               − Registrar egreso
             </button>
@@ -287,38 +288,41 @@ export default function CashPage() {
                 setCountedAmount(current.summary.expected_cash);
                 setCloseModal(true);
               }}
-              className="ml-auto rounded-md bg-gray-800 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-900"
+              className="nx-btn nx-btn-secondary ml-auto"
             >
               Cerrar caja
             </button>
           </div>
 
-          <div className="overflow-hidden rounded-lg bg-white shadow">
-            <div className="border-b border-gray-200 px-4 py-3 text-sm font-semibold text-gray-700">
+          <div className="nx-card overflow-hidden">
+            <div className="border-b border-line px-4 py-3 text-sm font-semibold text-foreground">
               Movimientos del turno
             </div>
             {movementsState.loading ? (
-              <p className="px-4 py-10 text-center text-sm text-gray-500">
-                Cargando movimientos…
-              </p>
+              <div className="p-5">
+                <LoadingState rows={5} />
+              </div>
             ) : movementsState.data?.total === 0 ? (
-              <EmptyState
-                title="Sin movimientos"
-                hint="Aún no hay movimientos registrados en este turno."
-              />
+              <div className="p-6">
+                <EmptyState
+                  title="Sin movimientos"
+                  hint="Aún no hay movimientos registrados en este turno."
+                />
+              </div>
             ) : (
               <>
-                <table className="min-w-full divide-y divide-gray-200 text-sm">
-                  <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+                <div className="overflow-x-auto">
+                <table className="nx-table">
+                  <thead>
                     <tr>
-                      <th className="px-4 py-3 text-left font-semibold text-gray-600">Fecha</th>
-                      <th className="px-4 py-3 text-left font-semibold text-gray-600">Tipo</th>
-                      <th className="hidden px-4 py-3 text-left font-semibold text-gray-600 md:table-cell">Medio</th>
-                      <th className="px-4 py-3 text-left font-semibold text-gray-600">Descripción</th>
-                      <th className="px-4 py-3 text-right font-semibold text-gray-600">Monto</th>
+                      <th className="text-left">Fecha</th>
+                      <th className="text-left">Tipo</th>
+                      <th className="hidden text-left md:table-cell">Medio</th>
+                      <th className="text-left">Descripción</th>
+                      <th className="text-right">Monto</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100">
+                  <tbody>
                     {movementsState.data?.items.map((movement) => {
                       const inflow =
                         movement.movement_type === 'CASH_OUT'
@@ -329,26 +333,28 @@ export default function CashPage() {
                         movement.payment_method === 'CARD' ||
                         movement.payment_method === 'TRANSFER';
                       return (
-                        <tr key={movement.id} className="hover:bg-gray-50">
-                          <td className="whitespace-nowrap px-4 py-3 text-gray-600">
+                        <tr key={movement.id} className="hover:bg-surface-2">
+                          <td className="whitespace-nowrap text-muted">
                             {formatDateTime(movement.created_at)}
                           </td>
-                          <td className="px-4 py-3 text-gray-800">
-                            {movementTypeLabel(movement.movement_type)}
+                          <td className="text-muted">
+                            <Badge tone={MOVEMENT_TYPE_TONE[movement.movement_type]}>
+                              {movementTypeLabel(movement.movement_type)}
+                            </Badge>
                           </td>
-                          <td className="hidden px-4 py-3 text-gray-600 md:table-cell">
+                          <td className="hidden text-muted md:table-cell">
                             {cashPaymentMethodLabel(movement.payment_method)}
                           </td>
-                          <td className="max-w-xs truncate px-4 py-3 text-gray-600">
+                          <td className="max-w-xs truncate text-muted">
                             {movement.description}
                           </td>
                           <td
-                            className={`px-4 py-3 text-right font-medium ${
+                            className={`text-right font-medium tabular-nums ${
                               electronic
-                                ? 'text-gray-500'
+                                ? 'text-faint'
                                 : inflow
-                                  ? 'text-green-700'
-                                  : 'text-red-700'
+                                  ? 'text-green-600 dark:text-green-400'
+                                  : 'text-red-600 dark:text-red-400'
                             }`}
                           >
                             {movement.movement_type === 'CASH_OUT' ? '−' : ''}
@@ -360,12 +366,15 @@ export default function CashPage() {
                     })}
                   </tbody>
                 </table>
-                <Pagination
-                  page={page}
-                  pageSize={PAGE_SIZE}
-                  total={movementsState.data?.total ?? 0}
-                  onChange={setPage}
-                />
+                </div>
+                <div className="border-t border-line px-4 py-3">
+                  <Pagination
+                    page={page}
+                    pageSize={PAGE_SIZE}
+                    total={movementsState.data?.total ?? 0}
+                    onChange={setPage}
+                  />
+                </div>
               </>
             )}
           </div>
@@ -373,66 +382,69 @@ export default function CashPage() {
       )}
 
       {/* Historial de cajas */}
-      <div className="overflow-hidden rounded-lg bg-white shadow">
-        <div className="border-b border-gray-200 px-4 py-3 text-sm font-semibold text-gray-700">
+      <div className="nx-card overflow-hidden">
+        <div className="border-b border-line px-4 py-3 text-sm font-semibold text-foreground">
           Historial de cajas
         </div>
         {historyState.loading ? (
-          <p className="px-4 py-10 text-center text-sm text-gray-500">
-            Cargando historial…
-          </p>
+          <div className="p-5">
+            <LoadingState rows={5} />
+          </div>
         ) : historyState.data?.total === 0 ? (
-          <EmptyState
-            title="Sin cajas anteriores"
-            hint="Aquí aparecerá cada turno cerrado con su diferencia."
-          />
+          <div className="p-6">
+            <EmptyState
+              title="Sin cajas anteriores"
+              hint="Aquí aparecerá cada turno cerrado con su diferencia."
+            />
+          </div>
         ) : (
-          <table className="min-w-full divide-y divide-gray-200 text-sm">
-            <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+          <div className="overflow-x-auto">
+          <table className="nx-table">
+            <thead>
               <tr>
-                <th className="px-4 py-3 text-left font-semibold text-gray-600">Cajero</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-600">Apertura</th>
-                <th className="hidden px-4 py-3 text-left font-semibold text-gray-600 md:table-cell">Cierre</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-600">Estado</th>
-                <th className="px-4 py-3 text-right font-semibold text-gray-600">Inicial</th>
-                <th className="px-4 py-3 text-right font-semibold text-gray-600">Esperado</th>
-                <th className="px-4 py-3 text-right font-semibold text-gray-600">Contado</th>
-                <th className="px-4 py-3 text-right font-semibold text-gray-600">Diferencia</th>
+                <th className="text-left">Cajero</th>
+                <th className="text-left">Apertura</th>
+                <th className="hidden text-left md:table-cell">Cierre</th>
+                <th className="text-left">Estado</th>
+                <th className="text-right">Inicial</th>
+                <th className="text-right">Esperado</th>
+                <th className="text-right">Contado</th>
+                <th className="text-right">Diferencia</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody>
               {historyState.data?.items.map((item) => (
-                <tr key={item.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-gray-800">{item.user_username}</td>
-                  <td className="whitespace-nowrap px-4 py-3 text-gray-600">
+                <tr key={item.id} className="hover:bg-surface-2">
+                  <td className="text-foreground">{item.user_username}</td>
+                  <td className="whitespace-nowrap text-muted">
                     {formatDateTime(item.opened_at)}
                   </td>
-                  <td className="hidden whitespace-nowrap px-4 py-3 text-gray-600 md:table-cell">
+                  <td className="hidden whitespace-nowrap text-muted md:table-cell">
                     {item.closed_at ? formatDateTime(item.closed_at) : '—'}
                   </td>
-                  <td className="px-4 py-3">
+                  <td>
                     <Badge tone={REGISTER_STATUS_TONE[item.status]}>
                       {registerStatusLabel(item.status)}
                     </Badge>
                   </td>
-                  <td className="px-4 py-3 text-right text-gray-700">
+                  <td className="text-right text-muted">
                     {formatCurrency(item.opening_amount)}
                   </td>
-                  <td className="px-4 py-3 text-right text-gray-700">
+                  <td className="text-right text-muted">
                     {item.expected_amount ? formatCurrency(item.expected_amount) : '—'}
                   </td>
-                  <td className="px-4 py-3 text-right text-gray-700">
+                  <td className="text-right text-muted">
                     {item.counted_amount ? formatCurrency(item.counted_amount) : '—'}
                   </td>
                   <td
-                    className={`px-4 py-3 text-right font-semibold ${
+                    className={`text-right font-semibold tabular-nums ${
                       item.difference == null
-                        ? 'text-gray-400'
+                        ? 'text-faint'
                         : Number(item.difference) === 0
-                          ? 'text-gray-700'
+                          ? 'text-foreground'
                           : Number(item.difference) > 0
-                            ? 'text-blue-700'
-                            : 'text-red-700'
+                            ? 'text-primary'
+                            : 'text-red-600 dark:text-red-400'
                     }`}
                   >
                     {item.difference == null ? '—' : formatCurrency(item.difference)}
@@ -441,6 +453,7 @@ export default function CashPage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 
@@ -448,7 +461,7 @@ export default function CashPage() {
       <Modal open={openModal} title="Abrir caja" onClose={() => setOpenModal(false)}>
         <form onSubmit={handleOpen} className="space-y-4">
           <div>
-            <label htmlFor="opening-amount" className="block text-xs font-medium text-gray-500">
+            <label htmlFor="opening-amount" className="nx-label">
               Monto inicial
             </label>
             <input
@@ -459,13 +472,13 @@ export default function CashPage() {
               required
               value={openingAmount}
               onChange={(e) => setOpeningAmount(e.target.value)}
-              className={`mt-1 ${inputClass}`}
+              className="nx-input"
               placeholder="0.00"
               autoFocus
             />
           </div>
           <div>
-            <label htmlFor="opening-notes" className="block text-xs font-medium text-gray-500">
+            <label htmlFor="opening-notes" className="nx-label">
               Notas (opcional)
             </label>
             <textarea
@@ -473,21 +486,21 @@ export default function CashPage() {
               rows={2}
               value={openingNotes}
               onChange={(e) => setOpeningNotes(e.target.value)}
-              className={`mt-1 ${inputClass}`}
+              className="nx-textarea"
             />
           </div>
           <div className="flex justify-end gap-2">
             <button
               type="button"
               onClick={() => setOpenModal(false)}
-              className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              className="nx-btn nx-btn-secondary"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="rounded-md bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50"
+              className="nx-btn nx-btn-success"
             >
               {saving ? 'Abriendo…' : 'Abrir caja'}
             </button>
@@ -507,7 +520,7 @@ export default function CashPage() {
       >
         <form onSubmit={handleManualMovement} className="space-y-4">
           <div>
-            <label htmlFor="manual-amount" className="block text-xs font-medium text-gray-500">
+            <label htmlFor="manual-amount" className="nx-label">
               Monto
             </label>
             <input
@@ -518,13 +531,13 @@ export default function CashPage() {
               required
               value={manualAmount}
               onChange={(e) => setManualAmount(e.target.value)}
-              className={`mt-1 ${inputClass}`}
+              className="nx-input"
               placeholder="0.00"
               autoFocus
             />
           </div>
           <div>
-            <label htmlFor="manual-description" className="block text-xs font-medium text-gray-500">
+            <label htmlFor="manual-description" className="nx-label">
               Motivo (obligatorio)
             </label>
             <input
@@ -534,7 +547,7 @@ export default function CashPage() {
               minLength={3}
               value={manualDescription}
               onChange={(e) => setManualDescription(e.target.value)}
-              className={`mt-1 ${inputClass}`}
+              className="nx-input"
               placeholder={
                 manualModal === 'CASH_IN'
                   ? 'Ej.: Fondo adicional, cobro pendiente…'
@@ -546,17 +559,17 @@ export default function CashPage() {
             <button
               type="button"
               onClick={() => setManualModal(null)}
-              className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              className="nx-btn nx-btn-secondary"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={saving}
-              className={`rounded-md px-4 py-2 text-sm font-semibold text-white disabled:opacity-50 ${
+              className={`nx-btn ${
                 manualModal === 'CASH_IN'
-                  ? 'bg-blue-600 hover:bg-blue-700'
-                  : 'bg-amber-600 hover:bg-amber-700'
+                  ? 'nx-btn-primary'
+                  : 'nx-btn-secondary text-amber-600 dark:text-amber-400'
               }`}
             >
               {saving ? 'Guardando…' : 'Registrar'}
@@ -569,16 +582,16 @@ export default function CashPage() {
       <Modal open={closeModal} title="Cerrar caja" onClose={() => setCloseModal(false)}>
         {current && (
           <form onSubmit={handleClose} className="space-y-4">
-            <div className="rounded-md bg-gray-50 p-3 text-sm">
+            <div className="rounded-xl border border-line bg-surface px-3 py-3 text-sm">
               <div className="flex justify-between py-1">
-                <span className="text-gray-500">Efectivo esperado</span>
-                <span className="font-bold text-gray-900">
+                <span className="text-muted">Efectivo esperado</span>
+                <span className="font-bold text-foreground">
                   {formatCurrency(current.summary.expected_cash)}
                 </span>
               </div>
             </div>
             <div>
-              <label htmlFor="counted-amount" className="block text-xs font-medium text-gray-500">
+              <label htmlFor="counted-amount" className="nx-label">
                 Efectivo contado
               </label>
               <input
@@ -589,41 +602,41 @@ export default function CashPage() {
                 required
                 value={countedAmount}
                 onChange={(e) => setCountedAmount(e.target.value)}
-                className={`mt-1 ${inputClass}`}
+                className="nx-input"
                 placeholder="0.00"
                 autoFocus
               />
             </div>
             {preview !== null && (
               <div
-                className={`rounded-md p-3 text-sm font-medium ${
+                className={`rounded-lg p-3 text-sm font-medium ${
                   preview === 0
-                    ? 'bg-green-50 text-green-800'
+                    ? 'bg-green-50 text-green-800 dark:bg-green-500/10 dark:text-green-300'
                     : preview > 0
-                      ? 'bg-blue-50 text-blue-800'
-                      : 'bg-red-50 text-red-800'
+                      ? 'bg-blue-50 text-blue-800 dark:bg-blue-500/10 dark:text-blue-300'
+                      : 'bg-red-50 text-red-800 dark:bg-red-500/10 dark:text-red-300'
                 }`}
                 role="alert"
               >
                 {preview === 0
                   ? 'Cuadra perfecto: sin diferencia.'
                   : preview > 0
-                    ? `⚠ Sobrante de ${formatCurrency(String(preview))}`
-                    : `⚠ Faltante de ${formatCurrency(String(Math.abs(preview)))}`}
+                    ? `Sobrante de ${formatCurrency(String(preview))}`
+                    : `Faltante de ${formatCurrency(String(Math.abs(preview)))}`}
               </div>
             )}
             <div className="flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setCloseModal(false)}
-                className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                className="nx-btn nx-btn-secondary"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
                 disabled={saving}
-                className="rounded-md bg-gray-800 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-900 disabled:opacity-50"
+                className="nx-btn nx-btn-danger"
               >
                 {saving ? 'Cerrando…' : 'Confirmar cierre'}
               </button>

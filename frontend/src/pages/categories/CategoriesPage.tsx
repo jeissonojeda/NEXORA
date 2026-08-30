@@ -8,12 +8,16 @@ import {
   updateCategory,
 } from '../../services/categories';
 import type { ApiCategory } from '../../types/catalog';
+import { userHasPermission } from '../../utils/permissions';
 import CategoryForm from '../../components/domain/CategoryForm';
 import Badge from '../../components/ui/Badge';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import EmptyState from '../../components/ui/EmptyState';
 import ErrorAlert from '../../components/ui/ErrorAlert';
+import LoadingState from '../../components/ui/LoadingState';
 import Modal from '../../components/ui/Modal';
+import PageHeader from '../../components/ui/PageHeader';
+import Icon from '../../components/ui/Icon';
 
 export default function CategoriesPage() {
   const { user } = useAuth();
@@ -23,9 +27,8 @@ export default function CategoriesPage() {
   ]);
 
   const canWrite =
-    user?.roles.some((role) =>
-      ['ADMIN', 'INVENTORY_MANAGER'].includes(role.name),
-    ) ?? false;
+    userHasPermission(user, 'categories.create') ||
+    userHasPermission(user, 'categories.update');
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<ApiCategory | null>(null);
@@ -84,104 +87,112 @@ export default function CategoriesPage() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-xl font-bold text-gray-900">Categorías</h2>
-        <div className="flex items-center gap-4">
-          <label className="flex items-center gap-2 text-sm text-gray-600">
-            <input
-              type="checkbox"
-              checked={includeInactive}
-              onChange={(event) => setIncludeInactive(event.target.checked)}
-              className="rounded border-gray-300"
-            />
-            Mostrar inactivas
-          </label>
-          {canWrite && (
-            <button
-              type="button"
-              onClick={() => {
-                setEditing(null);
-                setFormError(null);
-                setFormOpen(true);
-              }}
-              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
-            >
-              + Nueva categoría
-            </button>
-          )}
-        </div>
-      </div>
+    <div className="animate-fade-in space-y-5">
+      <PageHeader
+        title="Categorías"
+        subtitle="Organiza tus productos por categorías."
+        actions={
+          <>
+            <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-muted">
+              <input
+                type="checkbox"
+                checked={includeInactive}
+                onChange={(event) => setIncludeInactive(event.target.checked)}
+                className="h-4 w-4 rounded border-line-strong accent-[var(--nx-primary)]"
+              />
+              Mostrar inactivas
+            </label>
+            {canWrite && (
+              <button
+                type="button"
+                onClick={() => {
+                  setEditing(null);
+                  setFormError(null);
+                  setFormOpen(true);
+                }}
+                className="nx-btn nx-btn-primary"
+              >
+                <Icon name="plus" size={16} />
+                Nueva categoría
+              </button>
+            )}
+          </>
+        }
+      />
 
       <ErrorAlert
         message={categoriesState.error}
         onRetry={categoriesState.loading ? undefined : () => void categoriesState.reload()}
       />
 
-      <div className="overflow-hidden rounded-lg bg-white shadow">
+      <div className="nx-card overflow-hidden">
         {categoriesState.loading ? (
-          <p className="px-4 py-10 text-center text-sm text-gray-500">Cargando…</p>
+          <div className="p-5">
+            <LoadingState rows={4} />
+          </div>
         ) : (categoriesState.data?.length ?? 0) === 0 ? (
-          <EmptyState title="Sin categorías" hint="Crea la primera categoría para empezar." />
+          <EmptyState
+            title="Sin categorías"
+            hint="Crea la primera categoría para empezar."
+            icon="tag"
+          />
         ) : (
-          <table className="min-w-full divide-y divide-gray-200 text-sm">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-4 py-3 text-left font-semibold text-gray-600">Nombre</th>
-                <th className="hidden px-4 py-3 text-left font-semibold text-gray-600 sm:table-cell">
-                  Descripción
-                </th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-600">Estado</th>
-                {canWrite && (
-                  <th className="px-4 py-3 text-right font-semibold text-gray-600">Acciones</th>
-                )}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {categoriesState.data?.map((category) => (
-                <tr key={category.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 font-medium text-gray-900">{category.name}</td>
-                  <td className="hidden px-4 py-3 text-gray-500 sm:table-cell">
-                    {category.description || '—'}
-                  </td>
-                  <td className="px-4 py-3">
-                    {category.is_active ? (
-                      <Badge tone="green">Activa</Badge>
-                    ) : (
-                      <Badge tone="red">Inactiva</Badge>
-                    )}
-                  </td>
-                  {canWrite && (
-                    <td className="px-4 py-3 text-right whitespace-nowrap">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditing(category);
-                          setFormError(null);
-                          setFormOpen(true);
-                        }}
-                        className="mr-2 text-sm font-medium text-blue-600 hover:text-blue-800"
-                      >
-                        Editar
-                      </button>
-                      {category.is_active && (
+          <div className="overflow-x-auto">
+            <table className="nx-table">
+              <thead>
+                <tr>
+                  <th>Nombre</th>
+                  <th className="hidden sm:table-cell">Descripción</th>
+                  <th>Estado</th>
+                  {canWrite && <th className="text-right">Acciones</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {categoriesState.data?.map((category) => (
+                  <tr key={category.id}>
+                    <td className="font-medium">{category.name}</td>
+                    <td className="hidden sm:table-cell">{category.description || '—'}</td>
+                    <td>
+                      {category.is_active ? (
+                        <Badge tone="green">Activa</Badge>
+                      ) : (
+                        <Badge tone="red">Inactiva</Badge>
+                      )}
+                    </td>
+                    {canWrite && (
+                      <td className="whitespace-nowrap text-right">
                         <button
                           type="button"
                           onClick={() => {
-                            setDeactivateError(null);
-                            setDeactivating(category);
+                            setEditing(category);
+                            setFormError(null);
+                            setFormOpen(true);
                           }}
-                          className="text-sm font-medium text-red-600 hover:text-red-800"
+                          className="nx-btn nx-btn-sm nx-btn-ghost text-primary"
                         >
-                          Desactivar
+                          <Icon name="pencil" size={14} />
+                          Editar
                         </button>
-                      )}
-                    </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                        {category.is_active && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDeactivateError(null);
+                              setDeactivating(category);
+                            }}
+                            className="nx-btn nx-btn-sm nx-btn-ghost text-red-600 dark:text-red-400"
+                          >
+                            <Icon name="trash" size={14} />
+                            Desactivar
+                          </button>
+                        )}
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
@@ -194,13 +205,13 @@ export default function CategoriesPage() {
         }}
       >
         {editing && canWrite && (
-          <div className="mb-4 flex items-center justify-between rounded-md bg-gray-50 px-3 py-2 text-sm">
-            <span>Estado actual:</span>
+          <div className="mb-4 flex items-center justify-between rounded-lg bg-surface-2 px-3 py-2 text-sm">
+            <span className="text-muted">Estado actual:</span>
             <button
               type="button"
               disabled={busy}
               onClick={() => void handleToggleStatus(editing)}
-              className="font-medium text-blue-600 hover:text-blue-800"
+              className="font-medium text-primary hover:underline"
             >
               {editing.is_active ? 'Desactivar' : 'Activar'}
             </button>

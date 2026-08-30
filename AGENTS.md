@@ -2,7 +2,7 @@
 
 ## Status
 
-Fase actual: Fase 9 (Reportes y Exportación) completada. Siguiente: IA (integración OpenAI, análisis, recomendaciones).
+Fase actual: Fase 11 (Rediseño UX/UI Profesional de NEXORA) completada. Siguiente: Fase 12 (Optimización y Mejoras).
 
 ## Project intent
 
@@ -18,7 +18,7 @@ Ver `docs/ARCHITECTURE.md` para la documentación completa.
 backend/app/
   core/         → config, security (JWT+bcrypt), rbac, dependencies, exceptions
   db/           → session, base, seed (roles/permisos)
-  models/       → SQLAlchemy entities (User, Role, Permission, Supplier, Category, Product, InventoryMovement, Purchase, PurchaseItem, Customer, ReceivableAccount, ReceivablePayment, Sale, SaleItem, CashRegister, CashMovement)
+  models/       → SQLAlchemy entities (User, Role, Permission, Supplier, Category, Product, InventoryMovement, Purchase, PurchaseItem, Customer, ReceivableAccount, ReceivablePayment, Sale, SaleItem, CashRegister, CashMovement, AIAnalysis)
   schemas/      → Pydantic validation
   repositories/ → data access (CRUD base genérico + repos de catálogo/inventario/compras/clientes/cuentas/ventas/caja)
   services/     → business logic (aquí va la magia; InventoryService es el ÚNICO punto de cambio de stock; CustomerCreditService es el ÚNICO punto de cambio del saldo de clientes; CashService es el ÚNICO punto que crea movimientos de caja y calcula efectivo esperado)
@@ -28,12 +28,17 @@ backend/app/
   reports/      → PDF & Excel generation
 
 frontend/src/
-  components/   → ui/ (genéricos) + domain/ (específicos)
-  pages/        → una carpeta por módulo (auth, categories, suppliers, products, inventory, purchases, customers, sales, cash, reports)
-  services/     → Axios calls, una por dominio (api.ts + auth.ts + categories/suppliers/products/inventory/purchases/customers/receivables/sales/cash/reports)
-  contexts/     → AuthContext (sesión JWT restaurada desde localStorage)
-  hooks/        → custom hooks (useAsync, useHealth)
-  types/        → interfaces TypeScript (+ auth.ts, catalog.ts, purchase.ts, customer.ts, sale.ts, cash.ts, report.ts)
+  components/   → ui/ (genéricos: Badge, Button, Modal, PageHeader, KpiCard, LoadingState, EmptyState, ErrorAlert, ConfirmDialog, Pagination, Pagination+, Icon, ThemeToggle) + domain/ (específicos)
+  pages/        → una carpeta por módulo (auth, home, categories, suppliers, products, inventory, purchases, customers, sales, cash, reports, ai)
+  services/     → Axios calls, una por dominio (api.ts + auth.ts + categories/suppliers/products/inventory/purchases/customers/receivables/sales/cash/reports/ai)
+  contexts/     → AuthContext (sesión JWT restaurada desde localStorage) + ThemeContext (dark/light, key `nexora-theme`, clase `dark` en <html>)
+  hooks/        → custom hooks (useAsync, useHealth, useDashboard)
+  layouts/      → MainLayout (sidebar colapsable/drawer + header con ThemeToggle)
+  types/        → interfaces TypeScript (+ auth.ts, catalog.ts, purchase.ts, customer.ts, sale.ts, cash.ts, report.ts, ai.ts)
+  utils/        → format.ts (formatCurrency) + permissions.ts (userHasPermission)
+  routes/       → index.ts (rutas protegidas + rutas AI/providers/settings)
+
+Branding: NEXORA. Tema oscuro/claro (Tailwind v4, tokens `.nx-*`, dark mode vía clase). No añadir librerías de iconos: usar el set SVG propio de components/ui/Icon.tsx.
 ```
 
 ## Development commands

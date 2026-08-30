@@ -4,7 +4,22 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Sistema de Facturación e Inventario con IA</title>
+    <meta name="theme-color" content="#0a0f1e" />
+    <title>NEXORA | Sistema de facturación e inventario con IA</title>
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem('nexora-theme');
+          var dark =
+            stored === 'dark' ||
+            (!stored &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches);
+          var root = document.documentElement;
+          root.classList.toggle('dark', dark);
+          root.style.colorScheme = dark ? 'dark' : 'light';
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
