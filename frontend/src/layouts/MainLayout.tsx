@@ -213,15 +213,37 @@ function resolvePageTitle(pathname: string): string {
   return 'NEXORA';
 }
 
+const SIDEBAR_STORAGE_KEY = 'nexora-sidebar-collapsed';
+
+function readSidebarPref(): boolean {
+  try {
+    return window.localStorage.getItem(SIDEBAR_STORAGE_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
+
 function MainLayout() {
   const { user, logout } = useAuth();
   const location = useLocation();
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState<boolean>(readSidebarPref);
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  // En /pos priorizamos el espacio de venta: sidebar siempre contraído.
+  const isPos = location.pathname === '/pos' || location.pathname.startsWith('/pos/');
+  const sidebarCollapsed = isPos ? true : collapsed;
 
   useEffect(() => {
     setMobileOpen(false);
   }, [location.pathname]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(collapsed));
+    } catch {
+      /* almacenamiento no disponible */
+    }
+  }, [collapsed]);
 
   const title = useMemo(() => resolvePageTitle(location.pathname), [location.pathname]);
   const userName = user ? (user.first_name || user.username || 'Usuario') : '';
@@ -235,17 +257,18 @@ function MainLayout() {
     <div className="min-h-screen">
       {/* Sidebar escritorio (colapsable) */}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 hidden border-r border-line bg-surface transition-[width] duration-300 lg:flex lg:flex-col ${collapsed ? 'w-[84px]' : 'w-64'}`}
+        className={`fixed inset-y-0 left-0 z-40 hidden border-r border-line bg-surface transition-[width] duration-300 lg:flex lg:flex-col ${sidebarCollapsed ? 'w-[84px]' : 'w-64'}`}
       >
-        <SidebarContent collapsed={collapsed} />
+        <SidebarContent collapsed={sidebarCollapsed} />
         <button
           type="button"
           onClick={() => setCollapsed((value) => !value)}
-          className="m-3 flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted hover:bg-surface-2 hover:text-foreground"
-          aria-label={collapsed ? 'Expandir menú' : 'Colapsar menú'}
+          disabled={isPos}
+          className="m-3 flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted hover:bg-surface-2 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+          aria-label={sidebarCollapsed ? 'Expandir menú' : 'Colapsar menú'}
         >
-          <Icon name="chevrons-left" size={18} className={`transition-transform duration-300 ${collapsed ? 'rotate-180' : ''}`} />
-          {!collapsed && <span className="truncate">Colapsar</span>}
+          <Icon name="chevrons-left" size={18} className={`transition-transform duration-300 ${sidebarCollapsed ? 'rotate-180' : ''}`} />
+          {!sidebarCollapsed && <span className="truncate">Colapsar</span>}
         </button>
       </aside>
 
@@ -264,7 +287,7 @@ function MainLayout() {
       )}
 
       {/* Contenido */}
-      <div className={`flex min-h-screen flex-col transition-[padding] duration-300 ${collapsed ? 'lg:pl-[84px]' : 'lg:pl-64'}`}>
+      <div className={`flex min-h-screen flex-col transition-[padding] duration-300 ${sidebarCollapsed ? 'lg:pl-[84px]' : 'lg:pl-64'}`}>
         <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-line bg-surface/85 px-4 backdrop-blur lg:px-6">
           <button
             type="button"
@@ -302,7 +325,7 @@ function MainLayout() {
           )}
         </header>
 
-        <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6 lg:px-8">
+        <main className={`mx-auto w-full flex-1 px-4 py-6 sm:px-6 lg:px-8 ${isPos ? 'max-w-[1600px]' : 'max-w-7xl'}`}>
           <Outlet />
         </main>
 

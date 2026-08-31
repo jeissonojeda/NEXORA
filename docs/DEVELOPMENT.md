@@ -228,6 +228,29 @@ El frontend estará disponible en: http://localhost:5173
 | GET | `/api/cash/registers/{id}/summary` | Resumen detallado del turno | `cash.report` (solo ADMIN) |
 | POST | `/api/cash/movements` | Ingreso/egreso manual (`CASH_IN`/`CASH_OUT`, motivo ≥3) | `cash.movements` |
 
+## NEXORA AI Operativo (Fase 12)
+
+Requiere `GEMINI_API_KEY` en `.env`. La IA lee datos y **propone** acciones;
+ninguna escritura se ejecuta sin confirmación del usuario.
+
+| Método | URI | Descripción | Permiso |
+|---|---|---|---|
+| POST | `/api/ai/chat` | Chat con tool calling (devuelve texto + `action_proposals`) | `ai.read` |
+| POST | `/api/ai/invoice/scan` | Escaneo de factura (multipart: imagen/PDF) con Gemini Vision | `ai.invoice` |
+| POST | `/api/ai/action/preview` | Previsualizar/validar una acción propuesta | `ai.execute` |
+| POST | `/api/ai/action/confirm` | Ejecutar la acción (idempotente por clave + auditada) | `ai.execute` |
+| GET | `/api/ai/history` | Historial de auditoría de acciones (`{items,total}`) | `ai.read` |
+| GET | `/api/ai/health` | Disponibilidad del modelo Gemini | `ai.read` |
+| GET | `/api/ai/tools` | Catálogo de herramientas de lectura y de acción | `ai.read` |
+
+- RBAC: ADMIN=all; INVENTORY_MANAGER=`ai.read`,`ai.analyze`,`ai.invoice`,
+  `ai.inventory`,`ai.purchase`,`ai.execute`; CASHIER=`ai.read`,`ai.analyze`.
+- Al confirmar se valida el `permission` de la acción **y** el permiso nativo
+  del dominio (p. ej. `create_purchase` exige `PURCHASES_CREATE`).
+- Tests: `tests/test_ai_tools.py`, `tests/test_ai_permissions.py`,
+  `tests/test_ai_operational.py`, `tests/test_ai_invoice.py` (usan
+  `tests/fakes.py::FakeGeminiClient`).
+
 ## Compras y Abastecimiento (Fase 5)
 
 ### Reglas de negocio implementadas

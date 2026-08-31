@@ -1,4 +1,5 @@
-﻿from app.models.ai import AIAnalysis
+﻿from app.models.ai_action import AIActionHistory, AIActionStatuses, AIInvoiceScan
+from app.models.ai import AIAnalysis
 from app.models.category import Category
 from app.models.cash import (
     CASH_INFLOW_TYPES,
@@ -46,6 +47,9 @@ from app.models.user import User
 
 __all__ = [
     "AIAnalysis",
+    "AIActionHistory",
+    "AIActionStatuses",
+    "AIInvoiceScan",
     "User",
     "Role",
     "Permission",

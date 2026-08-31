@@ -33,7 +33,7 @@ El sistema sigue una arquitectura **monolítica modular** separada en dos compon
 | Autenticación | JWT (python-jose) | — |
 | Hashing | bcrypt (passlib) | — |
 | Validación | Pydantic v2 | — |
-| IA | OpenAI API | — |
+| IA | OpenAI API (análisis) + Google Gemini (asistente operativo) | — |
 | Reportes PDF | reportlab o weasyprint | — |
 | Reportes Excel | openpyxl | — |
 | Frontend | React 18 + Vite + TypeScript | — |
@@ -255,6 +255,10 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     OPENAI_API_KEY: str
+    GEMINI_API_KEY: str = ""
+    GEMINI_MODEL: str = "gemini-2.0-flash"
+    GEMINI_MAX_TOKENS: int = 2048
+    GEMINI_TIMEOUT: float = 60.0
     CORS_ORIGINS: list[str] = ["http://localhost:5173"]
     ENVIRONMENT: str = "development"
 ```
@@ -1445,5 +1449,81 @@ El módulo de IA queda pendiente para la siguiente fase.
 - Tests: 57 nuevos (`tests/test_reports.py`): RBAC, validaciones, filas y
   totales de los 9 reportes, filtros, paginación, reportes vacíos y
   exportación real (magic bytes `%PDF`/`PK`, content-types, nombres
-  `reporte-{tipo}-{fecha}-{hora}.pdf|xlsx`, introspección del xlsx vía
-  openpyxl, exportación completa ignora límite de página).
+   `reporte-{tipo}-{fecha}-{hora}.pdf|xlsx`, introspección del xlsx vía
+   openpyxl, exportación completa ignora límite de página).
+
+## 8. Fase 12 — NEXORA AI Operativo
+
+### Objetivo
+
+Convertir el módulo de IA en un **asistente operativo controlado** usando
+Google Gemini. El backend es el punto de control: la IA puede *leer* datos del
+negocio libremente, pero **jamás ejecuta una escritura** sin la confirmación
+explícita del usuario (flujo previsualizar → confirmar).
+
+### Componentes backend
+
+- `app/ai/gemini_client.py` — cliente Google `google-genai` (API v2 snake_case),
+  `GeminiClient` (genera respuestas de texto, *function calling* y *vision*),
+  `GeminiClientError` y el singleton `gemini_client`. Config vía env:
+  `GEMINI_API_KEY`, `GEMINI_MODEL`, `GEMINI_MAX_TOKENS`, `GEMINI_TIMEOUT`.
+- `app/ai/tools.py` — registro declarativo de herramientas:
+  - `READ_TOOLS` (5): `search_products`, `get_low_stock`, `get_business_context`,
+    `search_suppliers`, `get_stock_health` — se ejecutan de inmediato (solo lectura).
+  - `ACTION_TOOLS` (5): `create_purchase`, `adjust_inventory`, `create_product`,
+    `create_supplier`, `register_payment` — **interceptados** en el chat; nunca se
+    ejecutan sin confirmación. Cada una declara su `permission` (ai.*) y su
+    `action_type` (→ permiso nativo del dominio).
+- `app/services/ai_operational_service.py` — `AIOperationalService`:
+  - `chat()`: bucle de *tool calling* (tope `MAX_TOOL_ITERATIONS=5`). Las tools
+    de lectura se ejecutan y se retroalimentan; las de acción se capturan como
+    `ActionProposal` y se devuelven con el texto final, sin ejecutarlas.
+  - `preview_action()` / `confirm_action()`: escrituras seguras, **idempotentes**
+    (por `idempotency_key`) y **auditadas** (tabla `ai_action_history`). Los writes
+    se delegan en los servicios de dominio (PurchaseService, InventoryService,
+    ProductService, SupplierService, ReceivableService) para respetar las reglas
+    de stock/caja/saldo.
+  - `scan_invoice()`: envía la imagen/PDF a Gemini Vision, parsea JSON tolerando
+    texto, hace *matching* contra proveedores/productos del catálogo y detecta
+    duplicados por proveedor+número.
+- Modelos: `AIActionHistory` (auditoría, estados PREVIEW/CONFIRMED/REJECTED/FAILED)
+  y `AIInvoiceScan`. Migración: `alembic/versions/a1b2c3d4e5f6_0009_ai_operational.py`.
+
+### Endpoints
+
+| Método/URI | Descripción | Permiso |
+|---|---|---|
+| `POST /api/ai/chat` | Chat con tool calling (devuelve propuestas) | `ai.read` |
+| `POST /api/ai/invoice/scan` | Escaneo de factura (multipart file) | `ai.invoice` |
+| `POST /api/ai/action/preview` | Validar/previsualizar una acción | `ai.execute` |
+| `POST /api/ai/action/confirm` | Ejecutar la acción (idempotente+auditado) | `ai.execute` |
+| `GET /api/ai/history` | Historial de auditoría de acciones | `ai.read` |
+| `GET /api/ai/health` | Disponibilidad de Gemini | `ai.read` |
+| `GET /api/ai/tools` | Catálogo de herramientas | `ai.read` |
+
+### Seguridad (defensa en profundidad)
+
+- RBAC: ADMIN=all; INVENTORY_MANAGER=`ai.read`,`ai.analyze`,`ai.invoice`,
+  `ai.inventory`,`ai.purchase`,`ai.execute`; CASHIER=`ai.read`,`ai.analyze`
+  (sin escalada).
+- Al confirmar, se exige en el servicio el `permission` de la acción **y** el
+  permiso nativo de su `action_type` (p. ej. `purchase`→`PURCHASES_CREATE`).
+- `GeminiClientError` en `/chat` se traduce a `502 AI_API_ERROR` (nunca 500).
+- La clave API de Gemini vive solo en `.env`; no se loguea ni se expone en HTTP.
+
+### Frontend
+
+- `services/aiOperational.ts`: chatAi, scanInvoice (FormData), previewAction,
+  confirmAction, getAiHistory, getAiHealth, getAiTools.
+- `types/ai.ts`: tipos operativos (chat, propuestas, escaneo, historial).
+- `components/ai/`: `AiChatPanel`, `AiInvoiceScanner`, `AiActionConfirmModal`.
+- `pages/ai/AIPage.tsx`: pestañas nuevas **Asistente** y **Escaneo de facturas**;
+  los botones de confirmación de acciones solo aparecen con `ai.execute`.
+
+### Tests
+
+- `tests/test_ai_tools.py`, `tests/test_ai_permissions.py`,
+  `tests/test_ai_operational.py` (chat con fake client, confirm de compra
+  transaccional + stock, idempotencia por clave, fallo auditado),
+  `tests/test_ai_invoice.py` (parseo Gemini, matching, duplicados, tipo no
+  soportado, JSON no válido). Usan `tests/fakes.py` (`FakeGeminiClient`).

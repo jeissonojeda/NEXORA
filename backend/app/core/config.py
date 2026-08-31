@@ -25,6 +25,12 @@ class Settings(BaseSettings):
     OPENAI_MODEL: str = "gpt-4o-mini"
     OPENAI_MAX_TOKENS: int = 2000
 
+    # Google Gemini (Fase 12 - NEXORA AI Operativo)
+    GEMINI_API_KEY: str = ""
+    GEMINI_MODEL: str = "gemini-2.0-flash"
+    GEMINI_MAX_TOKENS: int = 2048
+    GEMINI_TIMEOUT: float = 60.0
+
     CORS_ORIGINS: str = '["http://localhost:5173"]'
 
     @property

@@ -27,6 +27,8 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     'purchases.read',
     'receivables.read',
     'receivables.payment',
+    'ai.read',
+    'ai.analyze',
   ],
   INVENTORY_MANAGER: [
     'products.read',
@@ -55,6 +57,12 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     'customers.update',
     'reports.read',
     'reports.export',
+    'ai.read',
+    'ai.analyze',
+    'ai.invoice',
+    'ai.inventory',
+    'ai.purchase',
+    'ai.execute',
   ],
 };
 

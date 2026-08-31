@@ -4,7 +4,9 @@ Sistema web profesional para la gestión integral de un supermercado, con módul
 
 ## Estado
 
-**Fase 1 — Fundamentos**, **Fase 2 — Autenticación, Usuarios y Roles**, **Fase 3 — Productos e Inventario**, **Fase 4 — Proveedores**, **Fase 5 — Compras y Abastecimiento**, **Fase 6 — Clientes y Cuentas por Cobrar**, **Fase 7 — Ventas y Facturación**, **Fase 8 — Caja y Control de Efectivo**, **Fase 9 — Reportes y Exportación**, **Fase 10 — Inteligencia Artificial** y **Fase 11 — Rediseño UX/UI Profesional (NEXORA)** completadas.
+**Fase 1 — Fundamentos**, **Fase 2 — Autenticación, Usuarios y Roles**, **Fase 3 — Productos e Inventario**, **Fase 4 — Proveedores**, **Fase 5 — Compras y Abastecimiento**, **Fase 6 — Clientes y Cuentas por Cobrar**, **Fase 7 — Ventas y Facturación**, **Fase 8 — Caja y Control de Efectivo**, **Fase 9 — Reportes y Exportación**, **Fase 10 — Inteligencia Artificial**, **Fase 11 — Rediseño UX/UI Profesional (NEXORA)** y **Fase 12 — NEXORA AI Operativo** completadas.
+
+La Fase 12 convierte el módulo de IA en un asistente operativo controlado con Google Gemini: chat con *tool calling* sobre datos del negocio, escaneo de facturas con Gemini Vision, flujo previsualizar/confirmar para cualquier escritura (idempotente y auditado) y RBAC estricto. La IA **nunca modifica datos sin confirmación del usuario**; el backend es el punto de control.
 
 ## Arquitectura
 
@@ -13,7 +15,7 @@ Monolito modular: backend API REST + frontend SPA, desplegables de forma indepen
 ```
 [Frontend React] ←→ [FastAPI Backend] ←→ [PostgreSQL]
                          ↓
-                   [OpenAI API]
+        [OpenAI API] + [Google Gemini]
 ```
 
 Documentación completa: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
@@ -24,7 +26,7 @@ Documentación completa: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 
 **Frontend:** React 19, Vite, TypeScript, Tailwind CSS v4, Axios
 
-**IA:** OpenAI API
+**IA:** OpenAI API (análisis y tendencias) + Google Gemini (asistente operativo con *tool calling* y escaneo de facturas)
 
 **Reportes:** PDF (reportlab), Excel (openpyxl)
 
@@ -178,7 +180,11 @@ Nunca se usan credenciales fijas en el código; la contraseña se pide de forma 
 | `SECRET_KEY` | Clave secreta JWT | `change-this-to-a-strong-random-secret-key` |
 | `ALGORITHM` | Algoritmo JWT | `HS256` |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | Expiración token | `30` |
-| `OPENAI_API_KEY` | Clave API OpenAI | (vacío) |
+| `OPENAI_API_KEY` | Clave API OpenAI (análisis) | (vacío) |
+| `GEMINI_API_KEY` | Clave API Google Gemini (asistente operativo) | (vacío) |
+| `GEMINI_MODEL` | Modelo Gemini | `gemini-2.0-flash` |
+| `GEMINI_MAX_TOKENS` | Máx. tokens de respuesta | `2048` |
+| `GEMINI_TIMEOUT` | Timeout de petición (s) | `60.0` |
 | `CORS_ORIGINS` | Orígenes CORS | `["http://localhost:5173"]` |
 | `APP_ENV` | Entorno | `development` |
 | `DEBUG` | Modo debug | `true` |

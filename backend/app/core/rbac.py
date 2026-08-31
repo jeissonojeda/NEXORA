@@ -69,6 +69,10 @@ class Permissions:
 
     AI_READ = "ai.read"
     AI_ANALYZE = "ai.analyze"
+    AI_EXECUTE = "ai.execute"
+    AI_INVOICE = "ai.invoice"
+    AI_INVENTORY = "ai.inventory"
+    AI_PURCHASE = "ai.purchase"
 
 
 ALL_PERMISSIONS: dict[str, str] = {
@@ -118,6 +122,10 @@ ALL_PERMISSIONS: dict[str, str] = {
     Permissions.REPORTS_EXPORT: "Exportar reportes",
     Permissions.AI_READ: "Consultar análisis de IA",
     Permissions.AI_ANALYZE: "Ejecutar análisis de IA",
+    Permissions.AI_EXECUTE: "Confirmar acciones propuestas por IA",
+    Permissions.AI_INVOICE: "Escaneo de facturas con IA",
+    Permissions.AI_INVENTORY: "Ajustes de inventario vía IA",
+    Permissions.AI_PURCHASE: "Compras propuestas por IA",
 }
 
 
@@ -150,6 +158,10 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         Permissions.CUSTOMERS_UPDATE,
         Permissions.RECEIVABLES_READ,
         Permissions.RECEIVABLES_PAYMENT,
+        # IA: solo lectura/consulta. El cajero NO puede confirmar acciones de
+        # IA (ni compras, inventario o pagos vía IA) para evitar escalamiento.
+        Permissions.AI_READ,
+        Permissions.AI_ANALYZE,
     ),
     Roles.INVENTORY_MANAGER: _codes(
         Permissions.PRODUCTS_READ,
@@ -179,5 +191,13 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         Permissions.REPORTS_READ,
         Permissions.REPORTS_EXPORT,
         # Sin permisos de caja: el rol de inventario no maneja efectivo.
+        # IA operativa: el encargado de inventario puede escanear facturas,
+        # proponer/adjustar inventario y compras, y confirmar acciones de IA.
+        Permissions.AI_READ,
+        Permissions.AI_ANALYZE,
+        Permissions.AI_INVOICE,
+        Permissions.AI_INVENTORY,
+        Permissions.AI_PURCHASE,
+        Permissions.AI_EXECUTE,
     ),
 }

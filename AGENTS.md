@@ -2,7 +2,9 @@
 
 ## Status
 
-Fase actual: Fase 11 (Rediseño UX/UI Profesional de NEXORA) completada. Siguiente: Fase 12 (Optimización y Mejoras).
+Fase actual: Fase 12 (NEXORA AI Operativo) completada. Siguiente: Fase 13 (Optimización y Mejoras).
+
+La Fase 12 convirtió el módulo de IA en un asistente operativo controlado con Google Gemini (tool calling, escaneo de facturas con Gemini Vision, flujo previsualizar/confirmar, idempotencia, auditoría y RBAC). La IA NUNCA modifica datos sin confirmación del usuario; el backend es el punto de control.
 
 ## Project intent
 
@@ -18,19 +20,19 @@ Ver `docs/ARCHITECTURE.md` para la documentación completa.
 backend/app/
   core/         → config, security (JWT+bcrypt), rbac, dependencies, exceptions
   db/           → session, base, seed (roles/permisos)
-  models/       → SQLAlchemy entities (User, Role, Permission, Supplier, Category, Product, InventoryMovement, Purchase, PurchaseItem, Customer, ReceivableAccount, ReceivablePayment, Sale, SaleItem, CashRegister, CashMovement, AIAnalysis)
+  models/       → SQLAlchemy entities (User, Role, Permission, Supplier, Category, Product, InventoryMovement, Purchase, PurchaseItem, Customer, ReceivableAccount, ReceivablePayment, Sale, SaleItem, CashRegister, CashMovement, AIAnalysis, AIActionHistory, AIInvoiceScan)
   schemas/      → Pydantic validation
   repositories/ → data access (CRUD base genérico + repos de catálogo/inventario/compras/clientes/cuentas/ventas/caja)
-  services/     → business logic (aquí va la magia; InventoryService es el ÚNICO punto de cambio de stock; CustomerCreditService es el ÚNICO punto de cambio del saldo de clientes; CashService es el ÚNICO punto que crea movimientos de caja y calcula efectivo esperado)
+  services/     → business logic (aquí va la magia; InventoryService es el ÚNICO punto de cambio de stock; CustomerCreditService es el ÚNICO punto de cambio del saldo de clientes; CashService es el ÚNICO punto que crea movimientos de caja y calcula efectivo esperado; AIOperationalService es el asistente de IA que ejecuta writes SOLO tras confirmación)
   api/routes/   → HTTP endpoints (sin lógica de negocio)
   cli.py        → python -m app.cli (seed-rbac, create-admin)
-  ai/           → OpenAI integration
+  ai/           → Google Gemini (gemini_client, tools, data_gatherer) + Fase 12 client/tools
   reports/      → PDF & Excel generation
 
 frontend/src/
-  components/   → ui/ (genéricos: Badge, Button, Modal, PageHeader, KpiCard, LoadingState, EmptyState, ErrorAlert, ConfirmDialog, Pagination, Pagination+, Icon, ThemeToggle) + domain/ (específicos)
+  components/   → ui/ (genéricos: Badge, Button, Modal, PageHeader, KpiCard, LoadingState, EmptyState, ErrorAlert, ConfirmDialog, Pagination, Pagination+, Icon, ThemeToggle) + domain/ (específicos) + ai/ (AiChatPanel, AiInvoiceScanner, AiActionConfirmModal)
   pages/        → una carpeta por módulo (auth, home, categories, suppliers, products, inventory, purchases, customers, sales, cash, reports, ai)
-  services/     → Axios calls, una por dominio (api.ts + auth.ts + categories/suppliers/products/inventory/purchases/customers/receivables/sales/cash/reports/ai)
+  services/     → Axios calls, una por dominio (api.ts + auth.ts + categories/suppliers/products/inventory/purchases/customers/receivables/sales/cash/reports/ai/aiOperational)
   contexts/     → AuthContext (sesión JWT restaurada desde localStorage) + ThemeContext (dark/light, key `nexora-theme`, clase `dark` en <html>)
   hooks/        → custom hooks (useAsync, useHealth, useDashboard)
   layouts/      → MainLayout (sidebar colapsable/drawer + header con ThemeToggle)

@@ -6,6 +6,12 @@ import ErrorAlert from '../../components/ui/ErrorAlert';
 import Icon from '../../components/ui/Icon';
 import LoadingState from '../../components/ui/LoadingState';
 import PageHeader from '../../components/ui/PageHeader';
+import { useAuth } from '../../contexts/AuthContext';
+import { userHasPermission } from '../../utils/permissions';
+import AiChatPanel from '../../components/ai/AiChatPanel';
+import AiInvoiceScanner from '../../components/ai/AiInvoiceScanner';
+import AiActionConfirmModal from '../../components/ai/AiActionConfirmModal';
+import type { AiActionProposal } from '../../types/ai';
 
 interface AIAnalysis {
   id: string;
@@ -55,7 +61,14 @@ function TrendDirection({ direction }: { direction: string }) {
 }
 
 export default function AIPage() {
-  const [activeTab, setActiveTab] = useState<'analyze' | 'trends' | 'history'>('analyze');
+  const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState<
+    'assistant' | 'analyze' | 'trends' | 'history' | 'invoice'
+  >('assistant');
+  const [selectedProposal, setSelectedProposal] =
+    useState<AiActionProposal | null>(null);
+  const canExecute = userHasPermission(user, 'ai.execute');
+  const canInvoice = userHasPermission(user, 'ai.invoice');
   const [query, setQuery] = useState('');
   const [analysisType, setAnalysisType] = useState('reorder');
   const [selectedProduct, setSelectedProduct] = useState('');
@@ -132,17 +145,22 @@ export default function AIPage() {
     }
   };
 
-  const tabs: { key: 'analyze' | 'trends' | 'history'; label: string }[] = [
+  const tabs: {
+    key: 'assistant' | 'analyze' | 'trends' | 'history' | 'invoice';
+    label: string;
+  }[] = [
+    { key: 'assistant', label: 'Asistente' },
     { key: 'analyze', label: 'Análisis' },
     { key: 'trends', label: 'Tendencias' },
     { key: 'history', label: 'Historial' },
+    ...(canInvoice ? [{ key: 'invoice' as const, label: 'Escaneo de facturas' }] : []),
   ];
 
   return (
     <div className="animate-fade-in space-y-6">
       <PageHeader
         title="NEXORA AI"
-        subtitle="Análisis inteligente y recomendaciones para tu negocio."
+        subtitle="Asistente operativo, análisis inteligente y recomendaciones para tu negocio."
       />
 
       {error && <ErrorAlert message={error} />}
@@ -165,6 +183,38 @@ export default function AIPage() {
           ))}
         </nav>
       </div>
+
+      {/* Assistant Tab */}
+      {activeTab === 'assistant' && (
+        <div className="nx-card p-6">
+          <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-foreground">
+            <Icon name="sparkles" className="text-primary" />
+            Asistente operativo
+          </h2>
+          <AiChatPanel
+            onPropose={(p) =>
+              canExecute ? setSelectedProposal(p) : undefined
+            }
+          />
+          {!canExecute && (
+            <p className="mt-3 text-xs text-faint">
+              No tienes permiso para ejecutar acciones (ai.execute). El asistente
+              solo podrá leer datos y proponer acciones para que otra persona las confirme.
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Invoice Scan Tab */}
+      {activeTab === 'invoice' && (
+        <div className="nx-card p-6">
+          <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-foreground">
+            <Icon name="scan" className="text-primary" />
+            Escaneo de facturas
+          </h2>
+          <AiInvoiceScanner />
+        </div>
+      )}
 
       {/* Analysis Tab */}
       {activeTab === 'analyze' && (
@@ -524,6 +574,12 @@ export default function AIPage() {
           )}
         </div>
       )}
+
+      <AiActionConfirmModal
+        proposal={selectedProposal}
+        onClose={() => setSelectedProposal(null)}
+        onDone={() => setSelectedProposal(null)}
+      />
     </div>
   );
 }
