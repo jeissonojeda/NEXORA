@@ -74,9 +74,17 @@ class SaleRepository(BaseRepository[Sale]):
         if status is not None:
             conditions.append(Sale.status == status)
         if date_from is not None:
-            conditions.append(Sale.created_at >= date_from)
+            if status == "CONFIRMED":
+                conditions.append(Sale.confirmed_at.is_not(None))
+                conditions.append(Sale.confirmed_at >= date_from)
+            else:
+                conditions.append(Sale.created_at >= date_from)
         if date_to is not None:
-            conditions.append(Sale.created_at <= date_to)
+            if status == "CONFIRMED":
+                conditions.append(Sale.confirmed_at.is_not(None))
+                conditions.append(Sale.confirmed_at <= date_to)
+            else:
+                conditions.append(Sale.created_at <= date_to)
         if q:
             pattern = f"%{q.lower()}%"
             conditions.append(func.lower(Sale.sale_number).like(pattern))
@@ -86,10 +94,10 @@ class SaleRepository(BaseRepository[Sale]):
             count_stmt = count_stmt.where(condition)
 
         total = int(self.db.scalar(count_stmt) or 0)
-        stmt = (
-            stmt.order_by(Sale.created_at.desc(), Sale.sale_number.desc())
-            .offset(skip)
-            .limit(limit)
-        )
+        if status == "CONFIRMED" and (date_from is not None or date_to is not None):
+            stmt = stmt.order_by(Sale.confirmed_at.desc(), Sale.sale_number.desc())
+        else:
+            stmt = stmt.order_by(Sale.created_at.desc(), Sale.sale_number.desc())
+        stmt = stmt.offset(skip).limit(limit)
         items = list(self.db.scalars(stmt).unique().all())
         return items, total

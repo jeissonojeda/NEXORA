@@ -18,6 +18,8 @@ export interface ApiSaleItem {
   unit_price: string;
   discount: string;
   tax: string;
+  tax_rate: string;
+  tax_name: string | null;
   subtotal: string;
   total: string;
   created_at: string;
@@ -66,6 +68,8 @@ export interface SaleItemPayload {
   unit_price?: number;
   discount?: number;
   tax?: number;
+  tax_rate?: number;
+  tax_name?: string;
 }
 
 export interface CreateSalePayload {

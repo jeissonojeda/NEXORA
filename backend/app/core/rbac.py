@@ -36,6 +36,7 @@ class Permissions:
     SALES_UPDATE = "sales.update"
     SALES_CONFIRM = "sales.confirm"
     SALES_CANCEL = "sales.cancel"
+    SALES_RETURNS = "sales.returns"
 
     CUSTOMERS_READ = "customers.read"
     CUSTOMERS_CREATE = "customers.create"
@@ -74,6 +75,11 @@ class Permissions:
     AI_INVENTORY = "ai.inventory"
     AI_PURCHASE = "ai.purchase"
 
+    SETTINGS_READ = "settings.read"
+    SETTINGS_UPDATE = "settings.update"
+
+    PRODUCTS_IMPORT = "products.import"
+
 
 ALL_PERMISSIONS: dict[str, str] = {
     Permissions.USERS_READ: "Ver usuarios",
@@ -96,6 +102,7 @@ ALL_PERMISSIONS: dict[str, str] = {
     Permissions.SALES_UPDATE: "Editar ventas",
     Permissions.SALES_CONFIRM: "Confirmar ventas (cobrar)",
     Permissions.SALES_CANCEL: "Cancelar ventas",
+    Permissions.SALES_RETURNS: "Registrar devoluciones y cambios de ventas",
     Permissions.CUSTOMERS_READ: "Consultar clientes",
     Permissions.CUSTOMERS_CREATE: "Crear clientes",
     Permissions.CUSTOMERS_UPDATE: "Actualizar clientes",
@@ -126,6 +133,9 @@ ALL_PERMISSIONS: dict[str, str] = {
     Permissions.AI_INVOICE: "Escaneo de facturas con IA",
     Permissions.AI_INVENTORY: "Ajustes de inventario vía IA",
     Permissions.AI_PURCHASE: "Compras propuestas por IA",
+    Permissions.SETTINGS_READ: "Ver configuración del sistema",
+    Permissions.SETTINGS_UPDATE: "Actualizar configuración del sistema",
+    Permissions.PRODUCTS_IMPORT: "Importar productos desde Excel",
 }
 
 
@@ -135,12 +145,50 @@ def _codes(*permissions: str) -> set[str]:
 
 ROLE_PERMISSIONS: dict[str, set[str]] = {
     Roles.ADMIN: _codes(*ALL_PERMISSIONS.keys()),
+    Roles.INVENTORY_MANAGER: _codes(
+        Permissions.PRODUCTS_READ,
+        Permissions.PRODUCTS_CREATE,
+        Permissions.PRODUCTS_UPDATE,
+        Permissions.PRODUCTS_DELETE,
+        Permissions.CATEGORIES_READ,
+        Permissions.CATEGORIES_CREATE,
+        Permissions.CATEGORIES_UPDATE,
+        Permissions.CATEGORIES_DELETE,
+        Permissions.INVENTORY_READ,
+        Permissions.INVENTORY_CREATE,
+        Permissions.INVENTORY_UPDATE,
+        Permissions.SUPPLIERS_READ,
+        Permissions.SUPPLIERS_CREATE,
+        Permissions.SUPPLIERS_UPDATE,
+        Permissions.SUPPLIERS_DELETE,
+        Permissions.PURCHASES_READ,
+        Permissions.PURCHASES_CREATE,
+        Permissions.PURCHASES_UPDATE,
+        Permissions.PURCHASES_CONFIRM,
+        Permissions.PURCHASES_CANCEL,
+        Permissions.SALES_READ,
+        Permissions.CUSTOMERS_READ,
+        Permissions.CUSTOMERS_CREATE,
+        Permissions.CUSTOMERS_UPDATE,
+        Permissions.REPORTS_READ,
+        Permissions.REPORTS_EXPORT,
+        # Sin permisos de caja: el rol de inventario no maneja efectivo.
+        # IA operativa: el encargado de inventario puede escanear facturas,
+        # proponer/adjustar inventario y compras, y confirmar acciones de IA.
+        Permissions.AI_READ,
+        Permissions.AI_ANALYZE,
+        Permissions.AI_INVOICE,
+        Permissions.AI_INVENTORY,
+        Permissions.AI_PURCHASE,
+        Permissions.AI_EXECUTE,
+    ),
     Roles.CASHIER: _codes(
         Permissions.SALES_READ,
         Permissions.SALES_CREATE,
         Permissions.SALES_UPDATE,
         Permissions.SALES_CONFIRM,
         Permissions.SALES_CANCEL,
+        Permissions.SALES_RETURNS,
         Permissions.CUSTOMERS_READ,
         Permissions.CUSTOMERS_CREATE,
         Permissions.CUSTOMERS_UPDATE,
@@ -162,6 +210,7 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         # IA (ni compras, inventario o pagos vía IA) para evitar escalamiento.
         Permissions.AI_READ,
         Permissions.AI_ANALYZE,
+        Permissions.SETTINGS_READ,
     ),
     Roles.INVENTORY_MANAGER: _codes(
         Permissions.PRODUCTS_READ,
@@ -199,5 +248,7 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         Permissions.AI_INVENTORY,
         Permissions.AI_PURCHASE,
         Permissions.AI_EXECUTE,
+        Permissions.SETTINGS_READ,
+        Permissions.PRODUCTS_IMPORT,
     ),
 }

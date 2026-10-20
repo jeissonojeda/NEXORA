@@ -22,6 +22,16 @@ _BORDER = Border(left=_THIN, right=_THIN, top=_THIN, bottom=_THIN)
 MONEY_FORMAT = "#,##0.00"
 
 
+def currency_number_format(symbol: str | None, decimals: int = 2) -> str:
+    """Formato numérico de Excel para montos, con símbolo opcional."""
+    decimals = max(decimals, 0)
+    pattern = "#,##0" + (f".{'0' * decimals}" if decimals else "")
+    if symbol:
+        escaped = symbol.replace('"', '""')
+        return f'"{escaped}" {pattern}'
+    return pattern
+
+
 def build_excel(
     title: str,
     generated_at: datetime,
@@ -29,6 +39,7 @@ def build_excel(
     columns: list[dict],
     rows: list[dict],
     totals_rows: list[tuple[str, dict]],
+    money_format: str = MONEY_FORMAT,
 ) -> bytes:
     """Construye el xlsx y retorna los bytes.
 
@@ -77,7 +88,7 @@ def build_excel(
         if column_type == "money":
             amount = None if value is None else Decimal(str(value))
             cell.value = float(amount) if amount is not None else None
-            cell.number_format = MONEY_FORMAT
+            cell.number_format = money_format
         elif column_type == "int":
             cell.value = int(value) if value is not None else None
         elif column_type == "datetime":

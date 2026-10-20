@@ -23,7 +23,9 @@ interface ChatMsg {
 
 const SUGGESTIONS = [
   '¿Qué productos tienen stock bajo?',
-  'Sugiere reabastecer proveedor principal',
+  '¿Cuánto stock queda de leche?',
+  '¿Cuánto vendí en los últimos 7 días?',
+  'Muéstrame las cuentas por cobrar pendientes',
   'Proponer compra de leche a Distribuidora ABC',
 ];
 
@@ -38,10 +40,13 @@ export default function AiChatPanel({ onPropose }: Props) {
     if (!message || sending) return;
     setSending(true);
     setError(null);
+    const history = messages
+      .slice(-8)
+      .map((m) => ({ role: m.role, text: m.text }));
     setMessages((m) => [...m, { role: 'user', text: message, proposals: [], toolSummary: null }]);
     setInput('');
     try {
-      const res: AiChatResponse = await chatAi(message);
+      const res: AiChatResponse = await chatAi(message, history);
       const toolCount = res.tool_results?.length ?? 0;
       setMessages((m) => [
         ...m,

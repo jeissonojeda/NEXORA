@@ -86,34 +86,41 @@ export default function InventoryPage() {
 
   // Stock bajo
   const lowStockState = useAsync(() => listLowStock(), []);
+  const allProductsState = useAsync(
+    () => listProducts({ isActive: true, limit: 200 }),
+    [],
+  );
 
-  // Operaciones
-  const [operation, setOperation] = useState<StockOperationType | null>(null);
+  // Operaciones (modal unificado)
+  const [operationOpen, setOperationOpen] = useState(false);
+  const [operationType, setOperationType] = useState<StockOperationType>('ENTRY');
   const [operationProduct, setOperationProduct] = useState<ApiProduct | null>(null);
   const [opBusy, setOpBusy] = useState(false);
   const [opError, setOpError] = useState<string | null>(null);
 
-  function openOperation(type: StockOperationType, product: ApiProduct) {
+  function openOperation(type: StockOperationType, product: ApiProduct | null) {
     setOpError(null);
     setOperationProduct(product);
-    setOperation(type);
+    setOperationType(type);
+    setOperationOpen(true);
   }
 
   async function submitEntryExitReturn(
+    productId: string,
+    operation: StockOperationType,
     quantity: number,
     reason: string,
     referenceId: string,
   ) {
-    if (!operation || !operationProduct) return;
     setOpBusy(true);
     setOpError(null);
     try {
       if (operation === 'ENTRY') {
-        await registerEntry({ product_id: operationProduct.id, quantity, reason, reference_id: referenceId });
+        await registerEntry({ product_id: productId, quantity, reason, reference_id: referenceId });
       } else if (operation === 'EXIT') {
-        await registerExit({ product_id: operationProduct.id, quantity, reason, reference_id: referenceId });
+        await registerExit({ product_id: productId, quantity, reason, reference_id: referenceId });
       } else if (operation === 'RETURN') {
-        await registerReturn({ product_id: operationProduct.id, quantity, reason, reference_id: referenceId });
+        await registerReturn({ product_id: productId, quantity, reason, reference_id: referenceId });
       }
       closeOperation();
       await Promise.all([stockState.reload(), movementsState.reload(), lowStockState.reload()]);
@@ -124,12 +131,11 @@ export default function InventoryPage() {
     }
   }
 
-  async function submitAdjustment(newStock: number, reason: string) {
-    if (!operationProduct) return;
+  async function submitAdjustment(productId: string, newStock: number, reason: string) {
     setOpBusy(true);
     setOpError(null);
     try {
-      await registerAdjustment({ product_id: operationProduct.id, new_stock: newStock, reason });
+      await registerAdjustment({ product_id: productId, new_stock: newStock, reason });
       closeOperation();
       await Promise.all([stockState.reload(), movementsState.reload(), lowStockState.reload()]);
     } catch (err) {
@@ -140,7 +146,7 @@ export default function InventoryPage() {
   }
 
   function closeOperation() {
-    setOperation(null);
+    setOperationOpen(false);
     setOperationProduct(null);
     setOpError(null);
   }
@@ -151,7 +157,16 @@ export default function InventoryPage() {
         title="Inventario"
         subtitle="Existencias, movimientos y alertas de stock."
         actions={
-          !canWrite && (
+          canWrite ? (
+            <button
+              type="button"
+              onClick={() => openOperation('ENTRY', null)}
+              className="nx-btn nx-btn-primary"
+            >
+              <Icon name="plus" size={16} />
+              Registrar movimiento
+            </button>
+          ) : (
             <p className="text-xs text-muted">
               Solo lectura — requiere permisos de inventario para registrar movimientos.
             </p>
@@ -249,10 +264,14 @@ export default function InventoryPage() {
                             </td>
                             {canWrite && (
                               <td className="whitespace-nowrap text-right">
-                                <button type="button" onClick={() => openOperation('ENTRY', product)} className="nx-btn nx-btn-sm nx-btn-ghost text-emerald-700 dark:text-emerald-400">Entrada</button>
-                                <button type="button" onClick={() => openOperation('EXIT', product)} disabled={product.stock === 0} className="nx-btn nx-btn-sm nx-btn-ghost text-red-600 dark:text-red-400 disabled:opacity-40">Salida</button>
-                                <button type="button" onClick={() => openOperation('RETURN', product)} className="nx-btn nx-btn-sm nx-btn-ghost text-primary">Devolución</button>
-                                <button type="button" onClick={() => openOperation('ADJUSTMENT', product)} className="nx-btn nx-btn-sm nx-btn-ghost text-amber-700 dark:text-amber-400">Ajuste</button>
+                                <button
+                                  type="button"
+                                  onClick={() => openOperation('ENTRY', product)}
+                                  className="nx-btn nx-btn-sm nx-btn-secondary"
+                                >
+                                  <Icon name="layers" size={14} />
+                                  Movimiento
+                                </button>
                               </td>
                             )}
                           </tr>
@@ -361,7 +380,7 @@ export default function InventoryPage() {
                     {lowStockState.data?.map((product) => (
                       <tr key={product.id}>
                         <td className="font-medium text-foreground">{product.name}</td>
-                        <td className="hidden text-muted sm:table-cell">{product.category.name}</td>
+                        <td className="hidden text-muted sm:table-cell">{product.category?.name ?? '—'}</td>
                         <td className="text-right font-bold text-red-600 dark:text-red-400">{product.stock}</td>
                         <td className="text-right text-muted">{product.minimum_stock}</td>
                         <td>
@@ -377,19 +396,23 @@ export default function InventoryPage() {
         </section>
       )}
 
-      <StockOperationModal
-        operation={operation}
-        product={operationProduct}
-        busy={opBusy}
-        error={opError}
-        onClose={closeOperation}
-        onSubmitEntryExitReturn={(quantity, reason, referenceId) =>
-          void submitEntryExitReturn(quantity, reason, referenceId)
-        }
-        onSubmitAdjustment={(newStock, reason) =>
-          void submitAdjustment(newStock, reason)
-        }
-      />
+      {operationOpen && (
+        <StockOperationModal
+          open
+          product={operationProduct}
+          products={allProductsState.data?.items ?? []}
+          initialOperation={operationType}
+          busy={opBusy}
+          error={opError}
+          onClose={closeOperation}
+          onSubmitEntryExitReturn={(productId, operation, quantity, reason, referenceId) =>
+            void submitEntryExitReturn(productId, operation, quantity, reason, referenceId)
+          }
+          onSubmitAdjustment={(productId, newStock, reason) =>
+            void submitAdjustment(productId, newStock, reason)
+          }
+        />
+      )}
     </div>
   );
 }

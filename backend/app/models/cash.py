@@ -89,6 +89,7 @@ class CashReferenceTypes:
 
     SALE = "SALE"
     RECEIVABLE_PAYMENT = "RECEIVABLE_PAYMENT"
+    SALE_RETURN = "SALE_RETURN"
 
 
 class CashRegister(Base):

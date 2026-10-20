@@ -17,6 +17,8 @@ import pytest
 from fastapi.testclient import TestClient
 from openpyxl import load_workbook
 
+from app.reports.excel import currency_number_format
+from app.reports.pdf import format_money
 from tests.conftest import auth_headers
 
 BASE = "/api/reports"
@@ -889,3 +891,38 @@ def test_export_ignores_pagination_and_exports_all_rows(
         if cell.value and str(cell.value).startswith("VTA-")
     }
     assert len(numbers_in_sheet) == 3
+
+
+def test_format_money_includes_currency_symbol():
+    assert format_money("1234.5", symbol="$", decimals=2) == "$ 1,234.50"
+    assert format_money("1234.5") == "1,234.50"
+    assert format_money("10", symbol="$", decimals=0) == "$ 10"
+    assert format_money(None, symbol="$") == "-"
+
+
+def test_currency_number_format_builds_excel_pattern():
+    assert currency_number_format("$", 2) == '"$" #,##0.00'
+    assert currency_number_format(None, 0) == "#,##0"
+    assert currency_number_format("COP", 0) == '"COP" #,##0'
+
+
+def test_export_excel_applies_configured_currency_symbol(
+    client, admin_user, admin_headers, make_product
+):
+    make_product(sale_price="100.00", stock=10)
+    client.put(
+        "/api/settings",
+        json={"currency_code": "USD", "currency_symbol": "US$"},
+        headers=admin_headers,
+    )
+    payload = client.get(
+        f"{BASE}/sales/export", params={"format": "excel"}, headers=admin_headers
+    ).content
+    workbook = load_workbook(io.BytesIO(payload))
+    money_formats = {
+        cell.number_format
+        for row in workbook.active.iter_rows()
+        for cell in row
+        if isinstance(cell.value, (int, float))
+    }
+    assert any("US$" in fmt for fmt in money_formats)

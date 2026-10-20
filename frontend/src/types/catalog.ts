@@ -1,8 +1,12 @@
+import type { ApiTaxBrief } from './settings';
+
 export interface ApiCategory {
   id: string;
   name: string;
   description: string | null;
+  tax: ApiTaxBrief | null;
   is_active: boolean;
+  products_count: number;
   created_at: string;
   updated_at: string;
 }
@@ -49,8 +53,12 @@ export interface ApiProduct {
   description: string | null;
   purchase_price: string;
   sale_price: string;
+  profit_percent: string;
+  unit: string | null;
   category: { id: string; name: string };
   supplier: ApiSupplierBrief | null;
+  tax: ApiTaxBrief | null;
+  effective_tax: ApiTaxBrief | null;
   stock: number;
   minimum_stock: number;
   is_active: boolean;
@@ -96,8 +104,11 @@ export interface ProductFormValues {
   description: string;
   purchase_price: string;
   sale_price: string;
+  profit_percent: string;
+  unit: string;
   category_id: string;
   supplier_id: string;
+  tax_id: string;
   minimum_stock: string;
 }
 
@@ -113,6 +124,7 @@ export interface SupplierListFilters {
 export interface CategoryFormValues {
   name: string;
   description: string;
+  tax_id: string;
 }
 
 const MOVEMENT_LABELS: Record<Movement['movement_type'], string> = {

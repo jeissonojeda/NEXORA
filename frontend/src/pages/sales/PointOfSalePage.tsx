@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { extractErrorMessage, useAsync } from '../../hooks/useAsync';
+import { extractErrorCode, extractErrorMessage, useAsync } from '../../hooks/useAsync';
 import { listCustomers } from '../../services/customers';
 import { listProducts, getProductByBarcode } from '../../services/products';
-import { createSale, confirmSale } from '../../services/sales';
+import { createSale, confirmSale, getSale } from '../../services/sales';
 import type { ApiProduct } from '../../types/catalog';
-import type { SalePaymentMethod } from '../../types/sale';
+import type { ApiSaleDetail, SalePaymentMethod } from '../../types/sale';
 import ErrorAlert from '../../components/ui/ErrorAlert';
 import EmptyState from '../../components/ui/EmptyState';
 import Badge from '../../components/ui/Badge';
@@ -67,12 +67,20 @@ export default function PointOfSalePage() {
     useState<SalePaymentMethod>('CASH');
   const [cashReceived, setCashReceived] = useState('');
   const [discount, setDiscount] = useState('0');
-  const [tax, setTax] = useState('0');
   const [notes, setNotes] = useState('');
 
   const [busy, setBusy] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [saleSuccess, setSaleSuccess] = useState<ApiSaleDetail | null>(null);
+  const [pendingDraft, setPendingDraft] = useState<{
+    id: string;
+    saleNumber: string;
+  } | null>(null);
+  // Evita duplicar la creación/confirmación ante dobles clics.
+  const submitRef = useRef(false);
+  // Borrador creado en un intento fallido: se reutiliza en el reintento.
+  const draftRef = useRef<{ id: string; signature: string } | null>(null);
   const [feedback, setFeedback] = useState<ScanFeedback>({
     kind: 'idle',
     message: '',
@@ -105,16 +113,30 @@ export default function PointOfSalePage() {
     };
   }, []);
 
+  // Si cambia cualquier dato de la venta, el borrador creado ya no la
+  // representa: el próximo cobro creará uno nuevo.
+  useEffect(() => {
+    if (!draftRef.current) return;
+    draftRef.current = null;
+    setPendingDraft(null);
+    setCheckoutError(null);
+  }, [cart, customerId, paymentMethod, discount, cashReceived, notes]);
+
   const totals = useMemo(() => {
     const subtotal = cart.reduce(
       (sum, line) => sum + Number(line.product.sale_price) * line.quantity,
       0,
     );
     const discountValue = Math.min(Math.max(Number(discount) || 0, 0), subtotal);
-    const taxValue = Math.max(Number(tax) || 0, 0);
+    // Impuesto calculado automáticamente por producto/categoría.
+    const taxValue = cart.reduce((sum, line) => {
+      const rate = Number(line.product.effective_tax?.rate ?? 0);
+      const base = Number(line.product.sale_price) * line.quantity;
+      return sum + (base * rate) / 100;
+    }, 0);
     const total = subtotal - discountValue + taxValue;
     return { subtotal, discountValue, taxValue, total };
-  }, [cart, discount, tax]);
+  }, [cart, discount]);
 
   const selectedCustomer = customersState.data?.items.find(
     (customer) => customer.id === customerId,
@@ -126,6 +148,7 @@ export default function PointOfSalePage() {
     paymentMethod === 'CREDIT' &&
     selectedCustomer !== undefined &&
     totals.total > creditAvailable;
+  const creditMissingCustomer = paymentMethod === 'CREDIT' && !customerId;
 
   const cashChange =
     paymentMethod === 'CASH' && cashReceived.trim() !== ''
@@ -214,8 +237,13 @@ export default function PointOfSalePage() {
       showFeedback('success', `${product.name} añadido`);
       setQuery('');
       window.setTimeout(() => scanInputRef.current?.focus(), 0);
-    } catch {
-      setBarcodeError(`Producto no encontrado para el código "${barcode}"`);
+    } catch (err) {
+      const message = extractErrorMessage(err);
+      setBarcodeError(
+        message.toLowerCase().includes('no encontrado')
+          ? `Producto no encontrado para el código "${barcode}"`
+          : message,
+      );
       showFeedback('not-found', 'Producto no encontrado');
       setQuery('');
       window.setTimeout(() => scanInputRef.current?.focus(), 0);
@@ -240,11 +268,16 @@ export default function PointOfSalePage() {
       setCheckoutError('Agregue al menos un producto');
       return;
     }
+    if (creditMissingCustomer) {
+      setCheckoutError('Seleccione un cliente para la venta a crédito');
+      return;
+    }
+    if (submitRef.current) return;
+    submitRef.current = true;
     setBusy(true);
     setCheckoutError(null);
-    setConfirmOpen(false);
     try {
-      const created = await createSale({
+      const payload = {
         customer_id: customerId || null,
         payment_method: paymentMethod,
         amount_paid:
@@ -252,27 +285,85 @@ export default function PointOfSalePage() {
             ? Number(cashReceived)
             : undefined,
         discount: Number(discount) || 0,
-        tax: Number(tax) || 0,
+        // El backend deriva el impuesto de cabecera a partir de los ítems.
+        tax: 0,
         notes: notes.trim() || null,
         items: cart.map((line) => ({
           product_id: line.product.id,
           quantity: line.quantity,
+          tax_rate: line.product.effective_tax
+            ? Number(line.product.effective_tax.rate)
+            : undefined,
+          tax_name: line.product.effective_tax?.name,
         })),
-      });
-      const confirmed = await confirmSale(created.id);
-      navigate(`/ventas/${confirmed.id}`);
+      };
+
+      // Reutiliza el borrador de un intento fallido con los mismos datos.
+      const signature = JSON.stringify(payload);
+      if (draftRef.current && draftRef.current.signature !== signature) {
+        draftRef.current = null;
+        setPendingDraft(null);
+      }
+      let saleId = draftRef.current?.id;
+      if (!saleId) {
+        const created = await createSale(payload);
+        saleId = created.id;
+        draftRef.current = { id: created.id, signature };
+        setPendingDraft({
+          id: created.id,
+          saleNumber: created.sale_number,
+        });
+      }
+
+      let confirmed: ApiSaleDetail;
+      try {
+        confirmed = await confirmSale(saleId);
+      } catch (err) {
+        // Un reintento puede encontrar la venta ya confirmada por el intento
+        // anterior (la respuesta se perdió): se recupera, no se duplica.
+        if (extractErrorCode(err) === 'SALE_ALREADY_CONFIRMED') {
+          confirmed = await getSale(saleId);
+        } else {
+          throw err;
+        }
+      }
+
+      draftRef.current = null;
+      setPendingDraft(null);
+      setConfirmOpen(false);
+      setSaleSuccess(confirmed);
     } catch (err) {
       setCheckoutError(extractErrorMessage(err));
       setConfirmOpen(false);
     } finally {
+      submitRef.current = false;
       setBusy(false);
-      scanInputRef.current?.focus();
     }
+  }
+
+  function startNewSale() {
+    setSaleSuccess(null);
+    setCart([]);
+    setCustomerId('');
+    setPaymentMethod('CASH');
+    setCashReceived('');
+    setDiscount('0');
+    setNotes('');
+    setCheckoutError(null);
+    setBarcodeError(null);
+    setQuery('');
+    setConfirmOpen(false);
+    setFeedback({ kind: 'idle', message: '' });
+    draftRef.current = null;
+    setPendingDraft(null);
+    void productsState.reload();
+    window.setTimeout(() => scanInputRef.current?.focus(), 50);
   }
 
   const canCheckout =
     !busy &&
     cart.length > 0 &&
+    !creditMissingCustomer &&
     !creditInsufficient &&
     !(paymentMethod === 'CASH' && cashReceived !== '' && Number(cashReceived) < totals.total);
 
@@ -342,8 +433,7 @@ export default function PointOfSalePage() {
             </form>
             <p className="mt-2 text-xs text-faint">
               Con el lector USB: escanea y presiona Enter (o escanea directamente) para agregar al carrito. Luego podrás seguir escaneando.
-            </p>
-            {barcodeError && (
+            </p>            {barcodeError && (
               <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-400/30 dark:bg-amber-400/10 dark:text-amber-200">
                 {barcodeError}
               </p>
@@ -587,18 +677,17 @@ export default function PointOfSalePage() {
                   />
                 </div>
                 <div>
-                  <label htmlFor="pos-tax" className="nx-label">
-                    Impuesto
-                  </label>
+                  <label className="nx-label">Impuesto (automático)</label>
                   <input
-                    id="pos-tax"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={tax}
-                    onChange={(event) => setTax(event.target.value)}
+                    type="text"
+                    value={formatCurrency(totals.taxValue)}
+                    readOnly
                     className="nx-input"
+                    aria-label="Impuesto calculado automáticamente"
                   />
+                  <p className="mt-1 text-xs text-faint">
+                    Se calcula según el impuesto del producto o su categoría.
+                  </p>
                 </div>
               </div>
 
@@ -641,6 +730,14 @@ export default function PointOfSalePage() {
             </div>
 
             {checkoutError && <ErrorAlert message={checkoutError} />}
+
+            {pendingDraft && (
+              <p className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-200">
+                Borrador {pendingDraft.saleNumber} pendiente de confirmar. Al
+                reintentar el cobro se confirma ese borrador, sin duplicar la
+                venta.
+              </p>
+            )}
 
             <button
               type="button"
@@ -758,6 +855,86 @@ export default function PointOfSalePage() {
             </button>
           </div>
         </div>
+      </Modal>
+
+      {/* Modal de éxito: la venta ya fue confirmada por el backend */}
+      <Modal
+        open={saleSuccess !== null}
+        title="Venta completada"
+        onClose={startNewSale}
+      >
+        {saleSuccess && (
+          <div className="space-y-4">
+            <div className="flex flex-col items-center gap-2 rounded-xl border border-green-300 bg-green-50 px-4 py-5 text-center dark:border-green-400/30 dark:bg-green-500/10">
+              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-green-500/20 text-green-700 dark:text-green-300">
+                <Icon name="check-circle" size={28} />
+              </span>
+              <p className="text-sm font-semibold text-green-900 dark:text-green-200">
+                Venta {saleSuccess.sale_number} registrada y confirmada.
+              </p>
+              <p className="text-3xl font-extrabold tabular-nums text-green-900 dark:text-green-200">
+                {formatCurrency(saleSuccess.total)}
+              </p>
+            </div>
+
+            <dl className="space-y-2 rounded-xl border border-line p-4 text-sm">
+              <div className="flex justify-between">
+                <dt className="text-muted">Método de pago</dt>
+                <dd className="font-semibold text-foreground">
+                  {
+                    PAYMENT_OPTIONS.find(
+                      (option) => option.value === saleSuccess.payment_method,
+                    )?.label
+                  }
+                </dd>
+              </div>
+              {saleSuccess.payment_method === 'CASH' && (
+                <>
+                  <div className="flex justify-between">
+                    <dt className="text-muted">Efectivo recibido</dt>
+                    <dd className="tabular-nums text-foreground">
+                      {formatCurrency(saleSuccess.amount_paid)}
+                    </dd>
+                  </div>
+                  <div className="flex justify-between">
+                    <dt className="text-muted">Vuelto</dt>
+                    <dd className="tabular-nums font-semibold text-green-700 dark:text-green-300">
+                      {formatCurrency(saleSuccess.change_due)}
+                    </dd>
+                  </div>
+                </>
+              )}
+              {saleSuccess.payment_method === 'CREDIT' && (
+                <p className="text-xs text-muted">
+                  El total quedó cargado a la cuenta por cobrar del cliente.
+                </p>
+              )}
+            </dl>
+
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <button
+                type="button"
+                onClick={() =>
+                  navigate(`/ventas/${saleSuccess.id}`, {
+                    state: { autoPrint: true },
+                  })
+                }
+                className="nx-btn nx-btn-secondary flex-1"
+              >
+                <Icon name="printer" size={16} />
+                Ver / imprimir comprobante
+              </button>
+              <button
+                type="button"
+                onClick={startNewSale}
+                className="nx-btn nx-btn-success flex-1"
+              >
+                <Icon name="plus" size={16} />
+                Nueva venta
+              </button>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );

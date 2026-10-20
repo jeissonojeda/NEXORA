@@ -469,3 +469,32 @@
     margin: 1rem 0;
   }
 }
+
+/* ------------------------------------------------------------------ */
+/* Impresión de comprobantes                                           */
+/* ------------------------------------------------------------------ */
+@media print {
+  /* Ocultar el chrome de la aplicación */
+  .nx-no-print {
+    display: none !important;
+  }
+  html,
+  body {
+    background: #ffffff !important;
+  }
+  /* Solo se imprime el comprobante marcado con .nx-print-area */
+  body * {
+    visibility: hidden;
+  }
+  .nx-print-area,
+  .nx-print-area * {
+    visibility: visible;
+  }
+  .nx-print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    color: #000000;
+  }
+}

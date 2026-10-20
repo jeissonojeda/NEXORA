@@ -249,12 +249,39 @@ class InventoryService:
         reason: str | None = None,
         reference_id: str | None = None,
     ) -> InventoryMovement:
+        movement = self.apply_return(
+            product_id=product_id,
+            quantity=quantity,
+            created_by=created_by,
+            reason=reason,
+            reference_id=reference_id,
+        )
+        product = self.db.get(Product, product_id)
+        assert product is not None
+        return self._commit_and_refresh(product, movement)
+
+    def apply_return(
+        self,
+        product_id: UUID,
+        quantity: int,
+        created_by: UUID,
+        reason: str | None = None,
+        reference_id: str | None = None,
+        reference_type: str | None = None,
+    ) -> InventoryMovement:
+        """Núcleo de devolución de stock SIN hacer commit.
+
+        Reingresa mercancía vendible al stock con movimiento RETURN. Participa
+        en la transacción del llamador (p. ej. devolución de una venta),
+        garantizando atomicidad entre stock, devolución y reembolso. Bloquea la
+        fila del producto hasta el COMMIT del llamador.
+        """
         self._validate_quantity(quantity)
         product = self._lock_product(product_id)
 
         previous_stock = product.stock
         product.stock = previous_stock + quantity
-        movement = self._register_movement(
+        return self._register_movement(
             product,
             MovementTypes.RETURN,
             quantity,
@@ -263,8 +290,8 @@ class InventoryService:
             reason,
             reference_id,
             created_by,
+            reference_type=reference_type,
         )
-        return self._commit_and_refresh(product, movement)
 
     def get_movement(self, movement_id: UUID) -> InventoryMovement:
         movement = self.movements.get_by_id(movement_id)

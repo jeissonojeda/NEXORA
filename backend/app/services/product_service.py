@@ -6,8 +6,10 @@ from sqlalchemy.orm import Session
 from app.core.exceptions import AppError
 from app.models.product import Product
 from app.models.supplier import Supplier
+from app.models.tax import Tax
 from app.repositories.category_repository import CategoryRepository
 from app.repositories.product_repository import ProductRepository
+from app.services.pricing_service import resolve_prices
 
 
 def _normalize_barcode(barcode: str | None) -> str | None:
@@ -18,7 +20,7 @@ def _normalize_barcode(barcode: str | None) -> str | None:
 
 
 class ProductService:
-    NULLABLE_FIELDS = ("barcode", "description", "supplier_id")
+    NULLABLE_FIELDS = ("barcode", "description", "supplier_id", "unit", "tax_id")
 
     def __init__(self, db: Session) -> None:
         self.db = db
@@ -48,6 +50,17 @@ class ProductService:
             )
         return category
 
+    def _validate_tax(self, tax_id: UUID | None) -> UUID | None:
+        if tax_id is None:
+            return None
+        if self.db.get(Tax, tax_id) is None:
+            raise AppError(
+                status_code=400,
+                error_code="INVALID_TAX",
+                message="El impuesto indicado no existe",
+            )
+        return tax_id
+
     def _validate_supplier(
         self, supplier_id: UUID, require_active: bool = True
     ) -> Supplier:
@@ -69,9 +82,12 @@ class ProductService:
     def create_product(
         self,
         name: str,
-        sale_price,
         category_id: UUID,
+        sale_price=None,
         purchase_price=None,
+        profit_percent=None,
+        unit: str | None = None,
+        tax_id: UUID | None = None,
         barcode: str | None = None,
         description: str | None = None,
         supplier_id: UUID | None = None,
@@ -83,15 +99,31 @@ class ProductService:
         self._validate_category(category_id)
         if supplier_id is not None:
             self._validate_supplier(supplier_id)
+        self._validate_tax(tax_id)
+
+        # Política única de precios (utilidad sobre el costo).
+        try:
+            purchase, percent, sale = resolve_prices(
+                purchase_price, profit_percent, sale_price
+            )
+        except ValueError as exc:
+            raise AppError(
+                status_code=422,
+                error_code="INVALID_PRICE",
+                message=str(exc),
+            )
 
         product = Product(
             name=name.strip(),
             barcode=barcode,
             description=description,
-            purchase_price=purchase_price,
-            sale_price=sale_price,
+            unit=unit,
+            purchase_price=purchase,
+            profit_percent=percent,
+            sale_price=sale,
             category_id=category_id,
             supplier_id=supplier_id,
+            tax_id=tax_id,
             stock=stock,
             minimum_stock=minimum_stock,
             is_active=True,
@@ -158,12 +190,46 @@ class ProductService:
             if effective_is_active and effective_supplier_id is not None:
                 self._validate_supplier(effective_supplier_id)
 
+        if "tax_id" in fields:
+            self._validate_tax(fields.get("tax_id"))
+
+        price_touched = (
+            "purchase_price" in fields
+            or "sale_price" in fields
+            or "profit_percent" in fields
+        )
+        if price_touched:
+            effective_purchase = fields.get("purchase_price", product.purchase_price)
+            sale_provided = fields.get("sale_price")
+            profit_provided = fields.get("profit_percent")
+            if sale_provided is not None:
+                # Override manual: manda el precio de venta y se recalcula %.
+                profit_arg = None
+            elif profit_provided is not None:
+                profit_arg = profit_provided
+            else:
+                # Solo cambió el costo: recalcula con la utilidad vigente.
+                profit_arg = product.profit_percent
+            try:
+                purchase, percent, sale = resolve_prices(
+                    effective_purchase, profit_arg, sale_provided
+                )
+            except ValueError as exc:
+                raise AppError(
+                    status_code=422,
+                    error_code="INVALID_PRICE",
+                    message=str(exc),
+                )
+            product.purchase_price = purchase
+            product.profit_percent = percent
+            product.sale_price = sale
+
         for field in (
             "name",
             "barcode",
             "description",
-            "purchase_price",
-            "sale_price",
+            "unit",
+            "tax_id",
             "category_id",
             "supplier_id",
             "minimum_stock",

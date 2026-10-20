@@ -2,6 +2,7 @@ import api from './api';
 import type {
   AiActionConfirmResponse,
   AiActionPreviewResponse,
+  AiChatMessage,
   AiChatResponse,
   AiHealthResponse,
   AiHistoryResponse,
@@ -9,8 +10,14 @@ import type {
   AiToolsResponse,
 } from '../types/ai';
 
-export async function chatAi(message: string): Promise<AiChatResponse> {
-  const { data } = await api.post<AiChatResponse>('/ai/chat', { message });
+export async function chatAi(
+  message: string,
+  history: AiChatMessage[] = [],
+): Promise<AiChatResponse> {
+  const { data } = await api.post<AiChatResponse>('/ai/chat', {
+    message,
+    history,
+  });
   return data;
 }
 

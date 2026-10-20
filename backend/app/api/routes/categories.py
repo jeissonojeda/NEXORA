@@ -20,8 +20,16 @@ def list_categories(
     skip: Annotated[int, Query(ge=0)] = 0,
     limit: Annotated[int, Query(ge=1, le=200)] = 100,
 ) -> list[CategoryResponse]:
-    categories = CategoryService(db).list_categories(skip=skip, limit=limit)
-    return [CategoryResponse.model_validate(c) for c in categories]
+    rows = CategoryService(db).list_categories(skip=skip, limit=limit)
+    return [
+        CategoryResponse(
+            **CategoryResponse.model_validate(category).model_dump(
+                exclude={"products_count"}
+            ),
+            products_count=products_count,
+        )
+        for category, products_count in rows
+    ]
 
 
 @router.get("/{category_id}", response_model=CategoryResponse)
@@ -42,7 +50,7 @@ def create_category(
     db: Annotated[Session, Depends(get_db)],
 ) -> CategoryResponse:
     category = CategoryService(db).create_category(
-        name=payload.name, description=payload.description
+        name=payload.name, description=payload.description, tax_id=payload.tax_id
     )
     return CategoryResponse.model_validate(category)
 

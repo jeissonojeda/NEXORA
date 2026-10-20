@@ -138,7 +138,9 @@ function HomePage() {
       />
 
       {error && (
-        <ErrorAlert message={error} onRetry={reload} />
+        <div className="space-y-2">
+          <ErrorAlert message={error} onRetry={reload} />
+        </div>
       )}
 
       {kpis.length > 0 && (

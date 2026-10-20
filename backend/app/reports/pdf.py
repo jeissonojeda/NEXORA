@@ -118,12 +118,21 @@ def build_pdf(
     return buffer.getvalue()
 
 
-def format_money(value: Decimal | float | int | None) -> str:
-    """Formato monetario legible para tablas del documento."""
+def format_money(
+    value: Decimal | float | int | None,
+    symbol: str | None = None,
+    decimals: int = 2,
+) -> str:
+    """Formato monetario legible para tablas del documento.
+
+    Si se indica ``symbol`` (p. ej. ``$``) se antepone al monto; de lo
+    contrario se conserva el formato numérico con separador de miles.
+    """
     if value is None:
         return "-"
     amount = Decimal(str(value))
-    return f"{amount:,.2f}"
+    rendered = f"{amount:,.{max(decimals, 0)}f}"
+    return f"{symbol} {rendered}" if symbol else rendered
 
 
 def format_text(value: object) -> str:

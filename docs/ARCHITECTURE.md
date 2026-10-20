@@ -183,9 +183,9 @@ frontend/
 │   │   ├── home/                # HomePage (dashboard con KPIs + caja)
 │   │   ├── products/            # ProductsPage
 │   │   ├── inventory/           # InventoryPage
-│   │   ├── categories/          # CategoriesPage
-│   │   ├── suppliers/           # SuppliersPage
-│   │   ├── purchases/           # PurchasesPage + PurchaseDetailPage
+│   │   ├── categories/          # CategoriesPage (envoltorio de CategoriesManager)
+│   │   ├── purchases/           # ComprasProveedoresPage (pestañas Registrar/Proveedores)
+│   │   │                        #   + PurchaseDetailPage
 │   │   ├── customers/           # CustomersPage + CustomerDetailPage + ReceivablesPage
 │   │   ├── sales/               # PointOfSalePage + SalesPage + SaleDetailPage
 │   │   ├── cash/                # CashPage
@@ -843,6 +843,12 @@ VITE_API_URL=http://localhost:8000/api
 - [x] Historial inmutable con trazabilidad (stock previo/nuevo, usuario, motivo)
 - [x] Migración `0002_catalog` (suppliers, categories, products, inventory_movements)
 - [x] Frontend: páginas categorías/productos/inventario + login + AuthContext
+- [x] UX Productos: formulario de alta en línea siempre visible (crear/editar en
+      la misma pantalla), pestañas **Productos**/**Categorías**, `CategoryForm`
+      y `SupplierForm` embebidos para crear categoría/proveedor sin salir del
+      formulario, tarjetas de totales y stock bajo, búsqueda con debounce y
+      consulta por código de barras
+- [x] Categorías: `products_count` en cada ítem del listado (`GET /api/categories`)
 
 ### Fase 4 — Proveedores ✅
 - [x] CRUD completo de proveedores (`/api/suppliers`) con borrado lógico
@@ -970,8 +976,10 @@ Decisiones vigentes que extienden/aclaran este documento:
   Los productos inactivos desaparecen de búsquedas por código de barras.
 - **Código de barras:** único pero opcional; cadena vacía se normaliza a NULL para
   permitir múltiples productos sin código.
-- **Paginación de listados:** categorías retorna array plano; productos y
-  movimientos retornan sobre `{items, total}` para paginación en el frontend.
+- **Paginación de listados:** categorías retorna array plano (cada ítem incluye
+  `products_count`, calculado con un `LEFT JOIN` + `GROUP BY`, sin N+1);
+  productos y movimientos retornan sobre `{items, total}` para paginación en el
+  frontend.
 - **Proveedores:** solo el modelo mínimo (id, name, contacto, is_active) quedó en
   la migración `0002_catalog` como dependencia estructural; sin endpoints ni UI
   hasta la fase correspondiente.
@@ -1119,9 +1127,20 @@ Errores: 404 `PURCHASE_NOT_FOUND` / `PURCHASE_ITEM_NOT_FOUND` /
 
 ### Frontend
 
-- Ruta `/purchases` (listado: número, proveedor, fecha, estado, total, acciones;
-  filtros por estado, proveedor y rango de fechas; paginación) y
-  `/purchases/:id` (detalle).
+- Ruta `/purchases` = `ComprasProveedoresPage`, con dos pestañas: **Registrar
+  compra** y **Proveedores**. Las rutas antiguas siguen operativas:
+  `/purchases?tab=proveedores` (realmente vía `initialTab`), `/proveedores`
+  monta la misma página en la pestaña Proveedores y `/purchases/:id` es el
+  detalle. En el menú lateral hay una sola entrada "Compras y proveedores".
+- Pestaña **Registrar compra** (`components/domain/PurchaseBuilder.tsx`): builder
+  en línea; elegir proveedor activo (o crearlo en línea con "+ Registrar
+  proveedor", que queda autoseleccionado) → agregar líneas (buscar producto,
+  cantidad, costo precargado con `purchase_price`, descuento, impuesto) →
+  totales en vivo → **Guardar borrador** o **Confirmar compra**. Bajo el builder,
+  "Compras recientes" lista los últimos borradores con cancelación.
+- Pestaña **Proveedores** (`components/domain/SuppliersManager.tsx`): formulario
+  en línea para crear proveedor + listado con búsqueda/estado/paginación, modal
+  de edición, modal de detalle (productos por proveedor) e historial de compras.
 - Crear compra = elegir proveedor activo → guardar borrador → agregar productos
   con cantidad/costo/descuento/impuesto → ver subtotal/descuento/impuesto/total.
 - DRAFT muestra acciones (editar encabezado, agregar/editar/eliminar producto,
@@ -1527,3 +1546,213 @@ explícita del usuario (flujo previsualizar → confirmar).
   transaccional + stock, idempotencia por clave, fallo auditado),
   `tests/test_ai_invoice.py` (parseo Gemini, matching, duplicados, tipo no
   soportado, JSON no válido). Usan `tests/fakes.py` (`FakeGeminiClient`).
+
+## 9. Configuración, precios, impuestos, moneda e impresión (Fase 14)
+
+### Objetivo
+
+Permitir configurar el negocio sin tocar código: **moneda**, **datos del
+negocio**, **impresión de comprobantes**, **cálculo de precio de venta por
+utilidad** y **impuestos configurables** que se muestran en las facturas con su
+porcentaje y valor, y que pueden vincularse a categorías.
+
+### Modelo de datos
+
+- `Settings` (fila única `id=1`): `currency_code/currency_symbol/currency_locale/
+  decimal_places/use_thousand_separator`, datos del negocio
+  (`business_name/tax_id/address/phone/email/logo_path`) y de impresión
+  (`printer_name/paper_width/print_copies/print_font_size/print_show_logo/
+  print_show_contact/print_show_tax_id/print_footer_text`). Migración
+  `79dbd4f1b7c4_0011_settings_and_product_fields.py`.
+- `Tax`: `name` (único), `rate` `NUMERIC(5,2)` con check `0 <= rate <= 100`,
+  `description`, `is_active`, `is_default`. Migración
+  `c1d2e3f4a5b6_0012_taxes.py` (crea `taxes` y añade `categories.tax_id`,
+  `products.tax_id`, `sale_items.tax_rate`, `sale_items.tax_name`).
+- `Product.unit`, `Product.profit_percent` (check `>= 0`), `Product.tax_id`.
+- `Category.tax_id` (impuesto por defecto de sus productos).
+- `SaleItem.tax_rate` + `tax_name` (snapshot histórico del impuesto).
+
+### Cálculo de precios (`app/services/pricing_service.py`)
+
+- `sale_price = purchase_price × (1 + profit_percent/100)`, redondeo
+  `ROUND_HALF_UP` a 2 decimales (utilidad **sobre costo**).
+- Un `sale_price` manual explícito recalcula `profit_percent` a partir de los
+  precios. Si el precio manual queda por debajo del costo, `profit_percent` se
+  acota a `>= 0` (la DB lo prohíbe negativo), pero el precio de venta se respeta.
+- Las ventas ya creadas conservan su precio de venta (no se recalculan).
+
+### Impuestos efectivos y snapshot
+
+- `Product.effective_tax` = `product.tax` si existe, si no `category.tax`.
+- Al crear/actualizar un ítem de venta, el backend resuelve
+  `(tax_rate, tax_amount, tax_name)`: si llega `tax > 0` se respeta; si llega
+  `tax_rate` se calcula `base × rate/100`; si no, se usa el impuesto efectivo del
+  producto. Se guarda **snapshot** en el ítem, de modo que cambiar un impuesto no
+  altera facturas históricas.
+- El impuesto de cabecera de la venta se deriva de la suma de los impuestos de
+  los ítems cuando no se envía explícitamente.
+
+### Moneda
+
+- `app/core/currencies.py` cataloga monedas (por defecto **COP**, `$`, locale
+  `es-CO`, 2 decimales). El frontend configura `formatCurrency` desde
+  `SettingsContext`. El cambio de moneda con ventas/compras existentes requiere
+  `confirm_currency_change` (si no, `409 CURRENCY_CHANGE_REQUIRES_CONFIRMATION`).
+- La exportación de **reportes** (PDF/Excel) aplica la moneda configurada: el PDF
+  antepone el símbolo (`$ 1,234.50`) y Excel usa un formato numérico con símbolo
+  (`"$" #,##0.00`) según los decimales configurados.
+
+### Endpoints
+
+| Método/URI | Descripción | Permiso |
+| --- | --- | --- |
+| `GET /api/settings` | Configuración actual | `settings.read` |
+| `PUT /api/settings` | Actualizar configuración | `settings.update` |
+| `GET /api/settings/currencies` | Catálogo de monedas | `settings.read` |
+| `POST /api/settings/reset` | Restaurar valores por defecto | `settings.update` |
+| `GET /api/taxes` | Listar impuestos | `settings.read` |
+| `POST /api/taxes` | Crear impuesto | `settings.update` |
+| `PUT /api/taxes/{id}` | Actualizar impuesto | `settings.update` |
+| `DELETE /api/taxes/{id}` | Desactivar impuesto | `settings.update` |
+
+### Impresión
+
+- El frontend es una SPA en el navegador: **no** existe acceso a impresoras ni
+  detección de dispositivos. La impresión usa el diálogo del navegador
+  (`window.print()`) con CSS `@media print` + `@page` (ancho de papel
+  `58mm/80mm/A5/A4`, márgenes, tamaño de fuente, cabecera del negocio, contacto,
+  NIT y pie de página configurables). Las **copias** se eligen en el diálogo del
+  navegador (no controlables desde la web). El comprobante imprime el desglose de
+  impuestos por nombre y porcentaje.
+
+### Frontend
+
+- Página `pages/settings/SettingsPage.tsx` (ruta `/ajustes`, permiso
+  `settings.read`) con pestañas Moneda / Impuestos / Negocio / Impresión.
+- `contexts/SettingsContext.tsx` carga la configuración y configura
+  `formatCurrency`. `components/domain/ProductForm.tsx` permite modo
+  utilidad/manual y selección de impuesto; `CategoryForm.tsx` vincula impuesto a
+  categoría. El POS (`PointOfSalePage.tsx`) calcula el impuesto automáticamente y
+  el detalle de venta (`SaleDetailPage.tsx`) imprime con desglose de impuestos.
+
+### Tests
+
+- `tests/test_pricing_taxes.py`: cálculo de precios, redondeo, override manual,
+  no recálculo histórico, CRUD de impuestos, rango, vínculo categoría→producto,
+  herencia/override, snapshot de impuesto en venta, permisos, moneda COP por
+  defecto, `confirm_currency_change`, código no soportado.
+
+## Devoluciones y cambios de venta
+
+Se registra un **documento aparte e inmutable** (`SaleReturn`); la venta original
+nunca se modifica. Numeración `DEV-YYYY-NNNNNN` con advisory lock
+(`sale_returns_number`). Tipos `RETURN` (devolución) y `EXCHANGE` (cambio).
+
+- **Condición del ítem**: `RESALE` (vuelve al stock con movimiento `RETURN`),
+  `DAMAGED`/`REVIEW` (no afecta stock).
+- **Reembolso** (`refund_method`): `CASH` (requiere caja abierta → movimiento
+  `CASH_OUT` con referencia `SALE_RETURN`; `409 REGISTER_NOT_OPEN`), `CREDIT`
+  (reduce la `ReceivableAccount`; `409 REFUND_EXCEEDS_BALANCE` /
+  `409 SALE_HAS_NO_RECEIVABLE`), `CARD`/`TRANSFER` (reembolso externo, sin caja).
+- **Cambio**: crea una nueva venta en la misma transacción; el crédito de la
+  devolución se aplica como `discount` de cabecera.
+- Idempotencia por `idempotency_key`. El stock solo cambia vía `InventoryService`.
+
+### Endpoints
+
+| Método/URI | Descripción | Permiso |
+| --- | --- | --- |
+| `POST /api/sales/{sale_id}/returns` | Registrar devolución/cambio | `sales.returns` |
+| `GET /api/sales/{sale_id}/returns` | Listar devoluciones de la venta | `sales.returns` |
+| `GET /api/sales/returns/{id}` | Detalle de devolución | `sales.returns` |
+| `DELETE /api/sales/returns/{id}` | Anular devolución | `sales.returns` |
+
+### Frontend
+
+- `components/domain/SaleReturnModal.tsx` (modos RETURN/EXCHANGE, selección de
+  cantidades descontando lo ya devuelto, picker de productos de reemplazo,
+  método de reembolso, confirmación explícita, `idempotency_key` con
+  `crypto.randomUUID`).
+- `pages/sales/SaleDetailPage.tsx`: botón "Devolución / Cambio" (solo ventas
+  `CONFIRMED` y permiso `sales.returns`), historial de devoluciones calculando lo
+  ya devuelto por `sale_item_id`.
+
+### Tests
+
+- `tests/test_sale_returns.py` (30): numeración, reembolso por método, condición,
+  cambio, crédito, idempotencia, permisos, anulación.
+
+## Importación masiva de productos (Excel/CSV)
+
+Flujo: plantilla → preview (validación sin escribir) → confirm (una transacción) →
+informe de errores. El **stock existente nunca se sobreescribe**; `stock_inicial`
+solo aplica a productos nuevos y entra como movimiento `ENTRY` (referencia
+`IMPORT`) vía `InventoryService`.
+
+- **Políticas de duplicado** (por `codigo_barras`): `SKIP_NEW` o `UPDATE_EXISTING`.
+- **Límites**: 5 MB por archivo, 2000 filas.
+- **Seguridad**: las celdas del informe exportado que empiezan con `= + - @` se
+  neutralizan con apóstrofo (formula-injection).
+- **Auditoría**: cada confirmación crea un `ProductImportBatch` (contadores y
+  filas rechazadas) consultable.
+
+### Endpoints
+
+| Método/URI | Descripción | Permiso |
+| --- | --- | --- |
+| `GET /api/products/import/template` | Plantilla XLSX | `products.import` |
+| `POST /api/products/import/preview` | Analizar archivo (no escribe) | `products.import` |
+| `POST /api/products/import/confirm` | Aplicar importación | `products.import` |
+| `GET /api/products/import/batches` | Historial de lotes | `products.import` |
+| `GET /api/products/import/batches/{id}/errors` | Informe XLSX de errores | `products.import` |
+
+`confirm` **revalida el archivo en servidor** (multipart `file` +
+`duplicate_policy`), nunca confía en las filas del preview.
+
+### Frontend
+
+- `components/domain/ProductImportModal.tsx` (fases select/preview/processing/
+  result/history, política, historial con descarga de errores) accesible desde
+  `pages/products/ProductsPage.tsx` (botón "Importar Excel").
+
+### Tests
+
+- `tests/test_product_import.py` (19): plantilla, preview (validaciones, columnas,
+  duplicados internos, formato), confirm (creación + stock vía movimiento,
+  `SKIP_NEW`/`UPDATE_EXISTING` sin tocar stock, política inválida), auditoría,
+  historial, informe de errores (con y sin errores), CSV y sanitización de
+  fórmulas.
+
+## Configuración de impresión y logotipo
+
+- El modelo `Settings` incorpora ~29 columnas de personalización del comprobante
+  (visibilidad de logo/nombre/NIT/dirección/teléfono/correo/ciudad/encabezado/
+  info adicional/pie legal/cliente/vendedor/método de pago/fecha/código de
+  barras/unidad/descuento/impuesto, tamaño y alineación del logo, alineación del
+  texto, márgenes) y metadatos del logo (`logo_filename`, `logo_mime_type`,
+  `logo_size_bytes`). Migración `0014` idempotente (`sa.inspect` guards).
+- **Logo**: persistido en servidor (`app/services/logo_service.py`), validado por
+  **magic bytes** (PNG/JPEG), ≤ 1 MB, nombre generado por el servidor (uuid +
+  extensión derivada del MIME; sin traversal). El frontend lo muestra vía blob
+  autenticado. Archivos en `backend/uploads/logos/` (ignorado por git).
+
+### Endpoints
+
+| Método/URI | Descripción | Permiso |
+| --- | --- | --- |
+| `GET /api/settings/logo` | Descargar logo (blob) | `settings.read` |
+| `POST /api/settings/logo` | Subir logo (PNG/JPEG ≤ 1 MB) | `settings.update` |
+| `DELETE /api/settings/logo` | Eliminar logo | `settings.update` |
+
+### Nota de cumplimiento
+
+- **No** se implementa validación DIAN. El comprobante es un documento interno;
+  la impresión usa el diálogo del navegador (no se afirma detección automática de
+  impresoras).
+
+### Tests
+
+- `tests/test_settings_print.py` (14): campos de impresión en `GET/PUT`, validación
+  de ancho de papel, permisos, subida PNG/JPEG, rechazo por magic bytes, rechazo
+  por tamaño, `GET` tras subida, `404` sin logo, borrado (elimina archivo),
+  reemplazo, y que el servicio nunca borra fuera de `uploads`.

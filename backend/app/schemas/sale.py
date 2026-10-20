@@ -24,6 +24,12 @@ class SaleItemCreate(BaseModel):
                              decimal_places=2)
     tax: Money = Field(default=Decimal("0"), ge=0, max_digits=12,
                         decimal_places=2)
+    # Snapshot del impuesto; si se envía tax_rate y no tax, el backend calcula
+    # el valor a partir del subtotal del ítem.
+    tax_rate: Money | None = Field(
+        default=None, ge=0, le=100, max_digits=5, decimal_places=2
+    )
+    tax_name: str | None = Field(default=None, max_length=80)
 
 
 class SaleItemUpdate(BaseModel):
@@ -36,6 +42,10 @@ class SaleItemUpdate(BaseModel):
     ) = Field(default=None, ge=0, max_digits=12, decimal_places=2)
     tax: Money | None = Field(default=None, ge=0, max_digits=12,
                               decimal_places=2)
+    tax_rate: Money | None = Field(
+        default=None, ge=0, le=100, max_digits=5, decimal_places=2
+    )
+    tax_name: str | None = Field(default=None, max_length=80)
 
 
 class SaleItemResponse(BaseModel):
@@ -49,6 +59,8 @@ class SaleItemResponse(BaseModel):
     unit_price: Money
     discount: Money
     tax: Money
+    tax_rate: Money
+    tax_name: str | None
     subtotal: Money
     total: Money
     created_at: datetime

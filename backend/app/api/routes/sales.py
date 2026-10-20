@@ -138,6 +138,8 @@ def add_sale_item(
         unit_price=payload.unit_price,
         discount=payload.discount,
         tax=payload.tax,
+        tax_rate=payload.tax_rate,
+        tax_name=payload.tax_name,
     )
     return SaleItemResponse.model_validate(item)
 

@@ -2,9 +2,11 @@
 
 ## Status
 
-Fase actual: Fase 12 (NEXORA AI Operativo) completada. Siguiente: Fase 13 (Optimización y Mejoras).
+Fases 12 (NEXORA AI Operativo) y 13 (Optimización y Mejoras, incluye asistente IA en español natural + UX) completadas. Sistema de **licenciamiento comercial** implementado (ver `docs/LICENSING.md`).
 
 La Fase 12 convirtió el módulo de IA en un asistente operativo controlado con Google Gemini (tool calling, escaneo de facturas con Gemini Vision, flujo previsualizar/confirmar, idempotencia, auditoría y RBAC). La IA NUNCA modifica datos sin confirmación del usuario; el backend es el punto de control.
+
+Licenciamiento: servicio central propio (`app/licensing/server`, FastAPI + DB separada, Ed25519, panel admin del propietario) + verificación local (`app/licensing/local`, clave pública, migración 0010). El bloqueo por licencia está desactivado salvo producción o `LICENSE_ENFORCEMENT_ENABLED=true`; el backend local es la autoridad, nunca el frontend.
 
 ## Project intent
 
@@ -20,25 +22,26 @@ Ver `docs/ARCHITECTURE.md` para la documentación completa.
 backend/app/
   core/         → config, security (JWT+bcrypt), rbac, dependencies, exceptions
   db/           → session, base, seed (roles/permisos)
-  models/       → SQLAlchemy entities (User, Role, Permission, Supplier, Category, Product, InventoryMovement, Purchase, PurchaseItem, Customer, ReceivableAccount, ReceivablePayment, Sale, SaleItem, CashRegister, CashMovement, AIAnalysis, AIActionHistory, AIInvoiceScan)
+  models/       → SQLAlchemy entities (User, Role, Permission, Supplier, Category, Product, Tax, Settings, InventoryMovement, Purchase, PurchaseItem, Customer, ReceivableAccount, ReceivablePayment, Sale, SaleItem, CashRegister, CashMovement, AIAnalysis, AIActionHistory, AIInvoiceScan, LocalLicense, LocalInstallation)
   schemas/      → Pydantic validation
   repositories/ → data access (CRUD base genérico + repos de catálogo/inventario/compras/clientes/cuentas/ventas/caja)
-  services/     → business logic (aquí va la magia; InventoryService es el ÚNICO punto de cambio de stock; CustomerCreditService es el ÚNICO punto de cambio del saldo de clientes; CashService es el ÚNICO punto que crea movimientos de caja y calcula efectivo esperado; AIOperationalService es el asistente de IA que ejecuta writes SOLO tras confirmación)
+  services/     → business logic (aquí va la magia; InventoryService es el ÚNICO punto de cambio de stock; CustomerCreditService es el ÚNICO punto de cambio del saldo de clientes; CashService es el ÚNICO punto que crea movimientos de caja y calcula efectivo esperado; PricingService es el ÚNICO cálculo de precio de venta/utilidad; AIOperationalService es el asistente de IA que ejecuta writes SOLO tras confirmación)
   api/routes/   → HTTP endpoints (sin lógica de negocio)
+  licensing/    → núcleo cripto (keys/canonical/documents/errors/constants) + server/ (servicio central FastAPI + DB propia + CLI) + local/ (verificador, huella, servicio local, dependencia require_license)
   cli.py        → python -m app.cli (seed-rbac, create-admin)
   ai/           → Google Gemini (gemini_client, tools, data_gatherer) + Fase 12 client/tools
   reports/      → PDF & Excel generation
 
 frontend/src/
-  components/   → ui/ (genéricos: Badge, Button, Modal, PageHeader, KpiCard, LoadingState, EmptyState, ErrorAlert, ConfirmDialog, Pagination, Pagination+, Icon, ThemeToggle) + domain/ (específicos) + ai/ (AiChatPanel, AiInvoiceScanner, AiActionConfirmModal)
-  pages/        → una carpeta por módulo (auth, home, categories, suppliers, products, inventory, purchases, customers, sales, cash, reports, ai)
-  services/     → Axios calls, una por dominio (api.ts + auth.ts + categories/suppliers/products/inventory/purchases/customers/receivables/sales/cash/reports/ai/aiOperational)
-  contexts/     → AuthContext (sesión JWT restaurada desde localStorage) + ThemeContext (dark/light, key `nexora-theme`, clase `dark` en <html>)
+  components/   → ui/ (genéricos: Badge, Button, Modal, PageHeader, KpiCard, LoadingState, EmptyState, ErrorAlert, ConfirmDialog, Pagination, Pagination+, Icon, ThemeToggle, Tooltip) + domain/ (específicos: ProductForm, CategoriesManager, SupplierForm, SuppliersManager, PurchaseBuilder, etc.) + ai/ (AiChatPanel, AiInvoiceScanner, AiActionConfirmModal)
+  pages/        → una carpeta por módulo (auth, home, categories, products, inventory, purchases, customers, sales, cash, reports, ai, settings, license). Compras y Proveedores comparten `purchases/ComprasProveedoresPage` (pestañas Registrar compra / Proveedores); Categorías se gestiona con `domain/CategoriesManager` (pestaña dentro de Productos y ruta `/categorias`)
+  services/     → Axios calls, una por dominio (api.ts + auth.ts + categories/suppliers/products/inventory/purchases/customers/receivables/sales/cash/reports/ai/aiOperational/settings/license)
+  contexts/     → AuthContext (sesión JWT restaurada desde localStorage) + LicenseContext (estado de licencia) + SettingsContext (configuración + moneda) + ThemeContext (dark/light, key `nexora-theme`, clase `dark` en <html>)
   hooks/        → custom hooks (useAsync, useHealth, useDashboard)
   layouts/      → MainLayout (sidebar colapsable/drawer + header con ThemeToggle)
-  types/        → interfaces TypeScript (+ auth.ts, catalog.ts, purchase.ts, customer.ts, sale.ts, cash.ts, report.ts, ai.ts)
+  types/        → interfaces TypeScript (+ auth.ts, catalog.ts, purchase.ts, customer.ts, sale.ts, cash.ts, report.ts, ai.ts, license.ts)
   utils/        → format.ts (formatCurrency) + permissions.ts (userHasPermission)
-  routes/       → index.ts (rutas protegidas + rutas AI/providers/settings)
+  routes/       → index.ts (rutas protegidas + rutas AI/providers/settings/license)
 
 Branding: NEXORA. Tema oscuro/claro (Tailwind v4, tokens `.nx-*`, dark mode vía clase). No añadir librerías de iconos: usar el set SVG propio de components/ui/Icon.tsx.
 ```

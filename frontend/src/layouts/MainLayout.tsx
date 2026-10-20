@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { ROUTES } from '../routes';
 import { userHasPermission } from '../utils/permissions';
 import Icon from '../components/ui/Icon';
 import type { IconName } from '../components/ui/Icon';
+import ErrorBoundary from '../components/ui/ErrorBoundary';
 import ThemeToggle from '../components/ui/ThemeToggle';
+import Tooltip from '../components/ui/Tooltip';
 
 interface NavItem {
   to: string;
@@ -51,12 +53,6 @@ const NAV_SECTIONS: NavSection[] = [
         icon: 'package',
         permission: 'products.read',
       },
-      {
-        to: ROUTES.CATEGORIES,
-        label: 'Categorías',
-        icon: 'tag',
-        permission: 'categories.read',
-      },
     ],
   },
   {
@@ -70,15 +66,9 @@ const NAV_SECTIONS: NavSection[] = [
       },
       {
         to: ROUTES.PURCHASES,
-        label: 'Compras',
+        label: 'Compras y proveedores',
         icon: 'truck',
         permission: 'purchases.read',
-      },
-      {
-        to: ROUTES.SUPPLIERS,
-        label: 'Proveedores',
-        icon: 'store',
-        permission: 'suppliers.read',
       },
     ],
   },
@@ -119,6 +109,12 @@ const NAV_SECTIONS: NavSection[] = [
         label: 'NEXORA IA',
         icon: 'sparkles',
         permission: 'ai.read',
+      },
+      {
+        to: ROUTES.SETTINGS,
+        label: 'Configuración',
+        icon: 'settings',
+        permission: 'settings.read',
       },
     ],
   },
@@ -176,19 +172,20 @@ function SidebarContent({ collapsed, onNavigate }: SidebarContentProps) {
               <ul className="space-y-1">
                 {items.map((item) => (
                   <li key={item.to}>
-                    <NavLink
-                      to={item.to}
-                      end={item.end}
-                      onClick={onNavigate}
-                      title={collapsed ? item.label : undefined}
-                      aria-label={item.label}
-                      className={({ isActive }) =>
-                        `nx-side-link ${isActive ? 'nx-side-link-active' : ''} ${collapsed ? 'justify-center px-3' : ''}`
-                      }
-                    >
-                      <Icon name={item.icon} size={20} className="shrink-0" />
-                      {!collapsed && <span className="truncate">{item.label}</span>}
-                    </NavLink>
+                    <Tooltip label={item.label} side="right" disabled={!collapsed} className="block">
+                      <NavLink
+                        to={item.to}
+                        end={item.end}
+                        onClick={onNavigate}
+                        aria-label={item.label}
+                        className={({ isActive }) =>
+                          `nx-side-link ${isActive ? 'nx-side-link-active' : ''} ${collapsed ? 'justify-center px-3' : ''}`
+                        }
+                      >
+                        <Icon name={item.icon} size={20} className="shrink-0" />
+                        {!collapsed && <span className="truncate">{item.label}</span>}
+                      </NavLink>
+                    </Tooltip>
                   </li>
                 ))}
               </ul>
@@ -200,8 +197,18 @@ function SidebarContent({ collapsed, onNavigate }: SidebarContentProps) {
   );
 }
 
+const EXTRA_TITLES: Record<string, string> = {
+  [ROUTES.CATEGORIES]: 'Categorías',
+  [ROUTES.SUPPLIERS]: 'Compras y proveedores',
+  [ROUTES.PURCHASES]: 'Compras y proveedores',
+  [ROUTES.SETTINGS]: 'Configuración',
+};
+
 function resolvePageTitle(pathname: string): string {
   if (pathname === ROUTES.HOME) return 'Inicio';
+  for (const [prefix, title] of Object.entries(EXTRA_TITLES)) {
+    if (pathname === prefix || pathname.startsWith(`${prefix}/`)) return title;
+  }
   for (const section of NAV_SECTIONS) {
     for (const item of section.items) {
       if (item.to === ROUTES.HOME) continue;
@@ -226,6 +233,7 @@ function readSidebarPref(): boolean {
 function MainLayout() {
   const { user, logout } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState<boolean>(readSidebarPref);
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -260,16 +268,23 @@ function MainLayout() {
         className={`fixed inset-y-0 left-0 z-40 hidden border-r border-line bg-surface transition-[width] duration-300 lg:flex lg:flex-col ${sidebarCollapsed ? 'w-[84px]' : 'w-64'}`}
       >
         <SidebarContent collapsed={sidebarCollapsed} />
-        <button
-          type="button"
-          onClick={() => setCollapsed((value) => !value)}
-          disabled={isPos}
-          className="m-3 flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted hover:bg-surface-2 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
-          aria-label={sidebarCollapsed ? 'Expandir menú' : 'Colapsar menú'}
+        <Tooltip
+          label="Expandir menú"
+          side="right"
+          disabled={!sidebarCollapsed || isPos}
+          className="block p-3"
         >
-          <Icon name="chevrons-left" size={18} className={`transition-transform duration-300 ${sidebarCollapsed ? 'rotate-180' : ''}`} />
-          {!sidebarCollapsed && <span className="truncate">Colapsar</span>}
-        </button>
+          <button
+            type="button"
+            onClick={() => setCollapsed((value) => !value)}
+            disabled={isPos}
+            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted hover:bg-surface-2 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+            aria-label={sidebarCollapsed ? 'Expandir menú' : 'Colapsar menú'}
+          >
+            <Icon name="chevrons-left" size={18} className={`shrink-0 transition-transform duration-300 ${sidebarCollapsed ? 'rotate-180' : ''}`} />
+            {!sidebarCollapsed && <span className="truncate">Colapsar</span>}
+          </button>
+        </Tooltip>
       </aside>
 
       {/* Drawer móvil */}
@@ -326,7 +341,21 @@ function MainLayout() {
         </header>
 
         <main className={`mx-auto w-full flex-1 px-4 py-6 sm:px-6 lg:px-8 ${isPos ? 'max-w-[1600px]' : 'max-w-7xl'}`}>
-          <Outlet />
+          {/* Contiene el fallo de una página dentro del área de contenido:
+              sidebar, header y footer siguen operativos. La key reinicia el
+              boundary al cambiar de ruta. */}
+          <ErrorBoundary
+            key={location.pathname}
+            context="route"
+            title="Se produjo un error al mostrar esta pantalla."
+            description="El módulo no pudo renderizarse, pero el resto de NEXORA sigue disponible. Puedes volver al inicio o recargar."
+            retryLabel="Recargar"
+            onRetry={() => window.location.reload()}
+            secondaryLabel="Volver al inicio"
+            onSecondary={() => navigate(ROUTES.HOME)}
+          >
+            <Outlet />
+          </ErrorBoundary>
         </main>
 
         <footer className="border-t border-line px-4 py-4 text-center text-xs text-faint">

@@ -1,24 +1,30 @@
 import { useState } from 'react';
 import { InlineError } from '../ui/ErrorAlert';
 import type { CategoryFormValues } from '../../types/catalog';
+import type { ApiTax } from '../../types/settings';
 
 interface CategoryFormProps {
   initial?: Partial<CategoryFormValues>;
+  taxes?: ApiTax[];
   busy: boolean;
   error: string | null;
   submitLabel: string;
   onSubmit: (values: CategoryFormValues) => void;
+  onCancel?: () => void;
 }
 
 export default function CategoryForm({
   initial,
+  taxes = [],
   busy,
   error,
   submitLabel,
   onSubmit,
+  onCancel,
 }: CategoryFormProps) {
   const [name, setName] = useState(initial?.name ?? '');
   const [description, setDescription] = useState(initial?.description ?? '');
+  const [taxId, setTaxId] = useState(initial?.tax_id ?? '');
   const [fieldError, setFieldError] = useState<string | null>(null);
 
   function handleSubmit(event: React.FormEvent) {
@@ -28,7 +34,7 @@ export default function CategoryForm({
       return;
     }
     setFieldError(null);
-    onSubmit({ name, description });
+    onSubmit({ name: name.trim(), description: description.trim() || '', tax_id: taxId || '' });
   }
 
   return (
@@ -46,6 +52,24 @@ export default function CategoryForm({
           placeholder="Ej. Lácteos"
         />
         <InlineError message={fieldError} />
+      </div>
+      <div>
+        <label htmlFor="category-tax" className="nx-label">
+          Impuesto por defecto
+        </label>
+        <select
+          id="category-tax"
+          value={taxId}
+          onChange={(event) => setTaxId(event.target.value)}
+          className="nx-select"
+        >
+          <option value="">Sin impuesto</option>
+          {taxes.map((tax) => (
+            <option key={tax.id} value={tax.id}>
+              {tax.name} ({tax.rate}%)
+            </option>
+          ))}
+        </select>
       </div>
       <div>
         <label htmlFor="category-description" className="nx-label">
@@ -66,7 +90,17 @@ export default function CategoryForm({
           {error}
         </p>
       )}
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        {onCancel && (
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={busy}
+            className="nx-btn nx-btn-secondary"
+          >
+            Cancelar
+          </button>
+        )}
         <button type="submit" disabled={busy} className="nx-btn nx-btn-primary">
           {busy ? 'Guardando…' : submitLabel}
         </button>

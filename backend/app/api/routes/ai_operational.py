@@ -45,7 +45,7 @@ def ai_chat(
 ):
     service = AIOperationalService(db)
     try:
-        return service.chat(current_user, request.message)
+        return service.chat(current_user, request.message, request.history)
     except GeminiClientError as e:
         raise AppError(
             status_code=502,

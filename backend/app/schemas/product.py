@@ -4,6 +4,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.tax import TaxBrief
+
 Money = Decimal
 
 
@@ -29,9 +31,18 @@ class ProductBase(BaseModel):
 
 class ProductCreate(ProductBase):
     purchase_price: Money = Field(ge=0, max_digits=12, decimal_places=2, default=0)
-    sale_price: Money = Field(ge=0, max_digits=12, decimal_places=2)
+    # Opcional: si no se envía, el backend lo calcula a partir de
+    # purchase_price + profit_percent (utilidad sobre el costo).
+    sale_price: Money | None = Field(
+        default=None, ge=0, max_digits=12, decimal_places=2
+    )
+    profit_percent: Money = Field(
+        default=Decimal("0"), ge=0, max_digits=5, decimal_places=2
+    )
+    unit: str | None = Field(default=None, max_length=20)
     category_id: UUID
     supplier_id: UUID | None = None
+    tax_id: UUID | None = None
     stock: int = Field(default=0, ge=0)
     minimum_stock: int = Field(default=0, ge=0)
 
@@ -46,8 +57,13 @@ class ProductUpdate(BaseModel):
     sale_price: Money | None = Field(
         default=None, ge=0, max_digits=12, decimal_places=2
     )
+    profit_percent: Money | None = Field(
+        default=None, ge=0, max_digits=5, decimal_places=2
+    )
+    unit: str | None = Field(default=None, max_length=20)
     category_id: UUID | None = None
     supplier_id: UUID | None = None
+    tax_id: UUID | None = None
     minimum_stock: int | None = Field(default=None, ge=0)
     is_active: bool | None = None
 
@@ -61,8 +77,12 @@ class ProductResponse(BaseModel):
     description: str | None
     purchase_price: Money
     sale_price: Money
+    profit_percent: Money
+    unit: str | None
     category: CategoryBrief
     supplier: SupplierBrief | None
+    tax: TaxBrief | None
+    effective_tax: TaxBrief | None
     stock: int
     minimum_stock: int
     is_active: bool

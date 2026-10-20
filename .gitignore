@@ -3,6 +3,11 @@
 .env.local
 .env.production
 
+# Licensing keys (NUNCA commitear claves privadas)
+backend/licensing_keys/
+**/licensing_keys/
+*.pem
+
 # Python
 __pycache__/
 *.py[cod]
@@ -53,6 +58,9 @@ backend/migration_check.db
 backend/reports_output/
 *.pdf
 *.xlsx
+
+# Uploads (logos y archivos subidos por el usuario)
+backend/uploads/
 
 # Logs
 *.log

@@ -16,8 +16,20 @@ from pydantic import BaseModel, ConfigDict, Field
 # ----------------------------------------------------------------------
 # Chat
 # ----------------------------------------------------------------------
+class ChatMessage(BaseModel):
+    """Turno previo de la conversación (contexto para referencias)."""
+
+    role: str = Field(..., pattern="^(user|assistant)$")
+    text: str = Field(..., max_length=5000)
+
+
 class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=5000)
+    history: list[ChatMessage] = Field(
+        default_factory=list,
+        max_length=20,
+        description="Turnos previos para mantener el contexto de la conversación",
+    )
 
 
 class ToolResult(BaseModel):

@@ -1,10 +1,12 @@
 import axios from 'axios';
 
+// IMPORTANTE: no se fija "Content-Type" por defecto. Un valor fijo de
+// application/json hace que axios serialice como JSON las peticiones
+// multipart (FormData) y un "multipart/form-data" sin boundary rompe el
+// parseo del cuerpo en el backend ("Missing boundary in multipart").
+// Axios aplica application/json automáticamente a los payloads de objeto.
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000/api',
-  headers: {
-    'Content-Type': 'application/json',
-  },
 });
 
 api.interceptors.request.use(

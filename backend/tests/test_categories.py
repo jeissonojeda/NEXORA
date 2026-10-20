@@ -76,6 +76,21 @@ def test_delete_category_in_use_returns_409(
     assert response.json()["error_code"] == "CATEGORY_IN_USE"
 
 
+def test_list_categories_includes_products_count(
+    client: TestClient, admin_user, make_category, make_product
+) -> None:
+    with_products = make_category(name="Con productos")
+    make_product(category=with_products)
+    make_product(category=with_products)
+    empty = make_category(name="Vacía")
+
+    response = client.get("/api/categories", headers=auth_headers(admin_user))
+    assert response.status_code == 200
+    by_name = {category["name"]: category for category in response.json()}
+    assert by_name["Con productos"]["products_count"] == 2
+    assert by_name[empty.name]["products_count"] == 0
+
+
 def test_cashier_can_read_categories_but_not_create(
     client: TestClient, cashier_user
 ) -> None:

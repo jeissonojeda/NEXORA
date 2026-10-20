@@ -21,10 +21,21 @@ function buildBody(values: Partial<ProductFormValues>): Record<string, unknown> 
     body.description = values.description?.trim() ? values.description.trim() : null;
   }
   if (values.purchase_price) body.purchase_price = Number(values.purchase_price);
-  if (values.sale_price) body.sale_price = Number(values.sale_price);
+  if (values.profit_percent !== undefined && values.profit_percent !== '') {
+    body.profit_percent = Number(values.profit_percent);
+  }
+  if (values.sale_price !== undefined && values.sale_price !== '') {
+    body.sale_price = Number(values.sale_price);
+  }
+  if (values.unit !== undefined) {
+    body.unit = values.unit?.trim() ? values.unit.trim() : null;
+  }
   if (values.category_id) body.category_id = values.category_id || null;
   if (values.supplier_id !== undefined) {
     body.supplier_id = values.supplier_id ? values.supplier_id : null;
+  }
+  if (values.tax_id !== undefined) {
+    body.tax_id = values.tax_id ? values.tax_id : null;
   }
   if (values.minimum_stock) body.minimum_stock = Number(values.minimum_stock);
   return body;

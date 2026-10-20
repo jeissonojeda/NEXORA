@@ -38,6 +38,7 @@ class MovementReferences:
 
     PURCHASE = "PURCHASE"
     SALE = "SALE"
+    SALE_RETURN = "SALE_RETURN"
 
 
 class Purchase(Base):

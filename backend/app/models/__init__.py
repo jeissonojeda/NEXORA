@@ -24,7 +24,9 @@ from app.models.customer import (
     VALID_RECEIVABLE_STATUSES,
 )
 from app.models.inventory import InventoryMovement, MovementTypes
+from app.models.license import LocalInstallation, LocalLicense
 from app.models.product import Product
+from app.models.product_import import ProductImportBatch
 from app.models.purchase import (
     MovementReferences,
     Purchase,
@@ -42,8 +44,22 @@ from app.models.sale import (
     VALID_PAYMENT_METHODS as VALID_SALE_PAYMENT_METHODS,
     VALID_SALE_STATUSES,
 )
+from app.models.sale_return import (
+    RefundMethods,
+    ReturnConditions,
+    ReturnStatuses,
+    ReturnTypes,
+    SaleReturn,
+    SaleReturnItem,
+    VALID_REFUND_METHODS,
+    VALID_RETURN_CONDITIONS,
+    VALID_RETURN_STATUSES,
+    VALID_RETURN_TYPES,
+)
 from app.models.supplier import Supplier
+from app.models.tax import Tax
 from app.models.user import User
+from app.models.settings import Settings
 
 __all__ = [
     "AIAnalysis",
@@ -56,6 +72,7 @@ __all__ = [
     "Category",
     "Supplier",
     "Product",
+    "ProductImportBatch",
     "Customer",
     "ReceivableAccount",
     "ReceivablePayment",
@@ -65,6 +82,8 @@ __all__ = [
     "VALID_PAYMENT_METHODS",
     "InventoryMovement",
     "MovementTypes",
+    "LocalLicense",
+    "LocalInstallation",
     "Purchase",
     "PurchaseItem",
     "PurchaseStatuses",
@@ -77,6 +96,16 @@ __all__ = [
     "SalePaymentMethods",
     "VALID_SALE_PAYMENT_METHODS",
     "FULL_PAYMENT_METHODS",
+    "SaleReturn",
+    "SaleReturnItem",
+    "ReturnStatuses",
+    "VALID_RETURN_STATUSES",
+    "ReturnTypes",
+    "VALID_RETURN_TYPES",
+    "RefundMethods",
+    "VALID_REFUND_METHODS",
+    "ReturnConditions",
+    "VALID_RETURN_CONDITIONS",
     "CashRegister",
     "CashMovement",
     "RegisterStatuses",
@@ -88,4 +117,6 @@ __all__ = [
     "CASH_OUTFLOW_TYPES",
     "METHOD_DEPENDENT_TYPES",
     "cash_delta",
+    "Settings",
+    "Tax",
 ]

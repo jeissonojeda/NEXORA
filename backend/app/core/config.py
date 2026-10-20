@@ -33,6 +33,19 @@ class Settings(BaseSettings):
 
     CORS_ORIGINS: str = '["http://localhost:5173"]'
 
+    # Licenciamiento (Fase 13 - producto comercial)
+    LICENSE_SERVER_URL: str = "http://localhost:8100"
+    LICENSE_PUBLIC_KEY_PATH: str = ""
+    LICENSE_PUBLIC_KEY_PEM: str = ""
+    LICENSE_ENFORCEMENT_ENABLED: bool = False
+    LICENSE_APP_VERSION: str = "1.0.0"
+    LICENSE_HTTP_TIMEOUT: float = 15.0
+    # Solo para pruebas/despliegues controlados: fuerza la huella de máquina.
+    LICENSE_FINGERPRINT: str = ""
+
+    # Directorio para archivos subidos (logos, etc.). Relativo a backend/.
+    UPLOADS_DIR: str = "uploads"
+
     @property
     def cors_origins_list(self) -> list[str]:
         return json.loads(self.CORS_ORIGINS)
@@ -40,6 +53,10 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.APP_ENV == "production"
+
+    @property
+    def is_license_enforcement_enabled(self) -> bool:
+        return self.is_production or self.LICENSE_ENFORCEMENT_ENABLED
 
 
 @lru_cache

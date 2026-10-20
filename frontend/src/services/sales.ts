@@ -5,6 +5,11 @@ import type {
   PaginatedSales,
   SaleListFilters,
 } from '../types/sale';
+import type {
+  ApiSaleReturn,
+  CreateSaleReturnPayload,
+  PaginatedSaleReturns,
+} from '../types/saleReturn';
 
 export async function listSales(
   filters: SaleListFilters = {},
@@ -54,5 +59,40 @@ export async function cancelSale(id: string): Promise<void> {
 
 export async function confirmSale(id: string): Promise<ApiSaleDetail> {
   const { data } = await api.post<ApiSaleDetail>(`/sales/${id}/confirm`);
+  return data;
+}
+
+export async function createSaleReturn(
+  saleId: string,
+  payload: CreateSaleReturnPayload,
+): Promise<ApiSaleReturn> {
+  const { data } = await api.post<ApiSaleReturn>(
+    `/sales/${saleId}/returns`,
+    payload,
+  );
+  return data;
+}
+
+export async function listSaleReturns(
+  saleId: string,
+  skip = 0,
+  limit = 50,
+): Promise<PaginatedSaleReturns> {
+  const { data } = await api.get<PaginatedSaleReturns>(
+    `/sales/${saleId}/returns`,
+    { params: { skip, limit } },
+  );
+  return data;
+}
+
+export async function getSaleReturn(returnId: string): Promise<ApiSaleReturn> {
+  const { data } = await api.get<ApiSaleReturn>(`/sales/returns/${returnId}`);
+  return data;
+}
+
+export async function cancelSaleReturn(returnId: string): Promise<ApiSaleReturn> {
+  const { data } = await api.delete<ApiSaleReturn>(
+    `/sales/returns/${returnId}`,
+  );
   return data;
 }

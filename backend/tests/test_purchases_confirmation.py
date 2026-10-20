@@ -163,6 +163,63 @@ def test_confirm_rejected_when_supplier_deactivated_after_draft(
     assert response.json()["error_code"] == "SUPPLIER_INACTIVE"
 
 
+def test_create_draft_with_multiple_items_keeps_stock_until_confirm(
+    client: TestClient,
+    admin_user,
+    db_session: Session,
+    make_supplier,
+    item_factory,
+) -> None:
+    """El builder en línea crea la compra con varios ítems en un solo POST.
+
+    Mientras la compra sea DRAFT el stock no cambia; solo la confirmación
+    aplica las entradas al inventario.
+    """
+    from app.models.product import Product
+
+    supplier = make_supplier()
+    item_a = item_factory(quantity=4, stock=0)
+    item_b = item_factory(quantity=7, stock=0)
+    product_a = UUID(item_a["product_id"])
+    product_b = UUID(item_b["product_id"])
+
+    created = _create_purchase(client, admin_user, supplier.id, items=[item_a, item_b])
+    assert created.status_code == 201
+    purchase = created.json()
+    assert purchase["status"] == PurchaseStatuses.DRAFT
+    assert len(purchase["items"]) == 2
+
+    db_session.expire_all()
+    assert db_session.get(Product, product_a).stock == 0
+    assert db_session.get(Product, product_b).stock == 0
+    assert db_session.query(InventoryMovement).count() == 0
+
+    confirmed = client.post(
+        f"/api/purchases/{purchase['id']}/confirm", headers=auth_headers(admin_user)
+    )
+    assert confirmed.status_code == 200
+
+    db_session.expire_all()
+    assert db_session.get(Product, product_a).stock == 4
+    assert db_session.get(Product, product_b).stock == 7
+    assert db_session.query(InventoryMovement).count() == 2
+
+
+def test_create_purchase_with_duplicate_product_in_items_rejected(
+    client: TestClient, admin_user, make_supplier, make_product
+) -> None:
+    supplier = make_supplier()
+    product = make_product()
+    item = {
+        "product_id": str(product.id),
+        "quantity": 1,
+        "unit_cost": "10.00",
+    }
+    response = _create_purchase(client, admin_user, supplier.id, items=[item, item])
+    assert response.status_code == 409
+    assert response.json()["error_code"] == "PURCHASE_ITEM_DUPLICATE_PRODUCT"
+
+
 # ---------------------------------------------------------------------------
 # Idempotencia
 # ---------------------------------------------------------------------------

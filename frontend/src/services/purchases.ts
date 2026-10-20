@@ -29,6 +29,9 @@ export async function getPurchase(id: string): Promise<ApiPurchaseDetail> {
 export async function createPurchase(payload: {
   supplier_id: string;
   notes?: string | null;
+  discount?: number;
+  tax?: number;
+  items?: PurchaseItemPayload[];
 }): Promise<ApiPurchaseDetail> {
   const { data } = await api.post<ApiPurchaseDetail>('/purchases', payload);
   return data;

@@ -1,7 +1,10 @@
+from uuid import UUID
+
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import AppError
 from app.models.category import Category
+from app.models.tax import Tax
 from app.repositories.category_repository import CategoryRepository
 
 
@@ -10,7 +13,22 @@ class CategoryService:
         self.db = db
         self.categories = CategoryRepository(db)
 
-    def create_category(self, name: str, description: str | None = None) -> Category:
+    def _validate_tax(self, tax_id: UUID | None) -> None:
+        if tax_id is None:
+            return
+        if self.db.get(Tax, tax_id) is None:
+            raise AppError(
+                status_code=400,
+                error_code="INVALID_TAX",
+                message="El impuesto indicado no existe",
+            )
+
+    def create_category(
+        self,
+        name: str,
+        description: str | None = None,
+        tax_id: UUID | None = None,
+    ) -> Category:
         name = name.strip()
         if self.categories.get_by_name(name) is not None:
             raise AppError(
@@ -18,7 +36,10 @@ class CategoryService:
                 error_code="CATEGORY_NAME_ALREADY_EXISTS",
                 message="Ya existe una categoría con ese nombre",
             )
-        category = Category(name=name, description=description, is_active=True)
+        self._validate_tax(tax_id)
+        category = Category(
+            name=name, description=description, tax_id=tax_id, is_active=True
+        )
         created = self.categories.add(category)
         self.db.commit()
         self.db.refresh(created)
@@ -36,8 +57,8 @@ class CategoryService:
 
     def list_categories(
         self, skip: int = 0, limit: int = 100, include_inactive: bool = True
-    ) -> list[Category]:
-        return self.categories.list_paginated(skip=skip, limit=limit)
+    ) -> list[tuple[Category, int]]:
+        return self.categories.list_with_counts(skip=skip, limit=limit)
 
     def update_category(self, category_id, **fields: object) -> Category:
         category = self.get_category(category_id)
@@ -57,6 +78,11 @@ class CategoryService:
         description = fields.get("description")
         if "description" in fields:
             category.description = description
+
+        if "tax_id" in fields:
+            tax_id = fields.get("tax_id")
+            self._validate_tax(tax_id)
+            category.tax_id = tax_id
 
         is_active = fields.get("is_active")
         if is_active is not None:

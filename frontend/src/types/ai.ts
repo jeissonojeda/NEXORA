@@ -74,6 +74,11 @@ export interface AiActionProposal {
   permission: string;
 }
 
+export interface AiChatMessage {
+  role: 'user' | 'assistant';
+  text: string;
+}
+
 export interface AiChatResponse {
   message: string;
   tool_results: AiToolResult[];

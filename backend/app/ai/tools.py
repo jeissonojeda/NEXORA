@@ -21,6 +21,17 @@ from sqlalchemy.orm import Session
 
 from app.ai.data_gatherer import DataGatherer
 from app.core.exceptions import AppError
+from app.core.rbac import Permissions
+
+# Permiso nativo requerido por tipo de acción (defensa en profundidad: la IA
+# no puede hacer algo que el rol ya no puede hacer por su cuenta).
+ACTION_NATIVE_PERMISSION: dict[str, str] = {
+    "purchase": Permissions.PURCHASES_CREATE,
+    "inventory": Permissions.INVENTORY_UPDATE,
+    "product": Permissions.PRODUCTS_CREATE,
+    "supplier": Permissions.SUPPLIERS_CREATE,
+    "payment": Permissions.RECEIVABLES_PAYMENT,
+}
 
 
 # ----------------------------------------------------------------------
@@ -100,6 +111,99 @@ def execute_search_suppliers(db: Session, args: dict[str, Any]) -> list[dict[str
     ]
 
 
+def execute_get_sales_summary(db: Session, args: dict[str, Any]) -> dict[str, Any]:
+    from app.ai.data_gatherer import DataGatherer
+
+    days = _opt_int(args.get("days")) or 30
+    return DataGatherer(db).sales_summary(days=max(1, min(days, 365)))
+
+
+def execute_get_purchases_summary(db: Session, args: dict[str, Any]) -> dict[str, Any]:
+    from app.ai.data_gatherer import DataGatherer
+
+    days = _opt_int(args.get("days")) or 30
+    return DataGatherer(db).purchase_summary(days=max(1, min(days, 365)))
+
+
+def execute_get_receivables(db: Session, args: dict[str, Any]) -> dict[str, Any]:
+    from app.ai.data_gatherer import DataGatherer
+
+    gather = DataGatherer(db)
+    return {
+        "customers": gather.customer_credit_status(),
+        "receivables": gather.receivables_status(),
+    }
+
+
+def execute_get_cash_summary(db: Session, args: dict[str, Any]) -> dict[str, Any]:
+    from app.ai.data_gatherer import DataGatherer
+
+    return DataGatherer(db).cash_status()
+
+
+def execute_search_customers(db: Session, args: dict[str, Any]) -> list[dict[str, Any]]:
+    from app.repositories.customer_repository import CustomerRepository
+
+    q = _opt_str(args.get("q")) or ""
+    repo = CustomerRepository(db)
+    items, _total = repo.search(q=q, limit=20)
+    return [
+        {
+            "id": str(c.id),
+            "name": c.name,
+            "identification": c.identification,
+            "phone": c.phone,
+            "credit_enabled": c.credit_enabled,
+            "current_balance": str(c.current_balance),
+            "credit_limit": str(c.credit_limit),
+            "is_active": c.is_active,
+        }
+        for c in items
+    ]
+
+
+def execute_get_product_stock(db: Session, args: dict[str, Any]) -> dict[str, Any]:
+    """Resuelve un producto por código de barras o texto y devuelve su stock.
+
+    Devuelve ``matches`` (hasta 5) y ``ambiguous`` para que el asistente pueda
+    pedir aclaración cuando la referencia no es única.
+    """
+    from app.repositories.product_repository import ProductRepository
+
+    barcode = _opt_str(args.get("barcode"))
+    q = _opt_str(args.get("q")) or ""
+    repo = ProductRepository(db)
+
+    items: list[Any] = []
+    if barcode:
+        found = repo.get_by_barcode(barcode)
+        if found is not None:
+            items = [found]
+    if not items and q:
+        items, _total = repo.search(q=q, is_active=True, limit=5)
+
+    def _serialize(p: Any) -> dict[str, Any]:
+        return {
+            "id": str(p.id),
+            "name": p.name,
+            "barcode": p.barcode,
+            "category": p.category.name if p.category else None,
+            "supplier": p.supplier.name if p.supplier else None,
+            "stock": p.stock,
+            "minimum_stock": p.minimum_stock,
+            "sale_price": str(p.sale_price),
+            "purchase_price": str(p.purchase_price),
+            "is_active": p.is_active,
+        }
+
+    return {
+        "query": barcode or q,
+        "count": len(items),
+        "ambiguous": len(items) > 1,
+        "matches": [_serialize(p) for p in items],
+    }
+
+
 def execute_get_stock_health(db: Session, args: dict[str, Any]) -> dict[str, Any]:
     from app.models.product import Product
     from sqlalchemy import func, select
@@ -167,6 +271,75 @@ READ_TOOLS: list[dict[str, Any]] = [
         "description": "Retorna conteos de productos totales, con stock bajo y agotados.",
         "parameters": {"type": "object", "properties": {}, "required": []},
     },
+    {
+        "name": "get_product_stock",
+        "description": (
+            "Resuelve un producto por nombre, texto o código de barras y "
+            "devuelve su stock, precios, categoría y proveedor. Marca "
+            "'ambiguous' cuando la referencia coincide con varios productos."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "q": {"type": "string", "description": "nombre o texto del producto"},
+                "barcode": {"type": "string", "description": "código de barras exacto"},
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "get_sales_summary",
+        "description": (
+            "Resumen real de ventas de un período: total facturado, número de "
+            "ventas, métodos de pago y productos más vendidos."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "days": {"type": "integer", "description": "período en días (por defecto 30)"}
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "get_purchases_summary",
+        "description": (
+            "Resumen real de compras de un período: cantidad, monto total por "
+            "estado y compras recientes con su proveedor."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "days": {"type": "integer", "description": "período en días (por defecto 30)"}
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "get_receivables",
+        "description": (
+            "Estado de la cartera de clientes y cuentas por cobrar: totales de "
+            "crédito, saldo pendiente y desglose por estado."
+        ),
+        "parameters": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "search_customers",
+        "description": "Busca clientes activos por nombre, identificación, correo o teléfono.",
+        "parameters": {
+            "type": "object",
+            "properties": {"q": {"type": "string", "description": "texto de búsqueda"}},
+            "required": [],
+        },
+    },
+    {
+        "name": "get_cash_summary",
+        "description": (
+            "Estado de caja: cajas abiertas y turnos cerrados recientes con "
+            "efectivo esperado, contado y diferencia."
+        ),
+        "parameters": {"type": "object", "properties": {}, "required": []},
+    },
 ]
 
 READ_EXECUTORS: dict[str, Any] = {
@@ -175,6 +348,12 @@ READ_EXECUTORS: dict[str, Any] = {
     "get_business_context": execute_get_business_context,
     "search_suppliers": execute_search_suppliers,
     "get_stock_health": execute_get_stock_health,
+    "get_product_stock": execute_get_product_stock,
+    "get_sales_summary": execute_get_sales_summary,
+    "get_purchases_summary": execute_get_purchases_summary,
+    "get_receivables": execute_get_receivables,
+    "search_customers": execute_search_customers,
+    "get_cash_summary": execute_get_cash_summary,
 }
 
 READ_TOOL_NAMES = {t["name"] for t in READ_TOOLS}

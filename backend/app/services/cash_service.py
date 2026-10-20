@@ -341,6 +341,43 @@ class CashService:
             )
         )
 
+    def record_sale_return_refund_in_transaction(
+        self, sale_return, user_id: UUID
+    ) -> CashMovement | None:
+        """Movimiento CASH_OUT para el reembolso en efectivo de una devolución.
+
+        Sin caja abierta NO hace nada (el reembolso en efectivo requiere
+        turno abierto; el llamador valida). Idempotente: si ya existe un
+        movimiento con reference (SALE_RETURN, sale_return.id) no duplica.
+        """
+        if money(sale_return.refunded_amount) <= 0:
+            return None
+        register = self.registers.get_open_for_user(user_id)
+        if register is None:
+            return None
+        reference_id = str(sale_return.id)
+        if (
+            self.movements_repo.get_by_reference(
+                CashReferenceTypes.SALE_RETURN, reference_id
+            )
+            is not None
+        ):
+            return None
+        return self.movements_repo.add(
+            CashMovement(
+                register_id=register.id,
+                user_id=user_id,
+                movement_type=MovementTypes.CASH_OUT,
+                payment_method=None,
+                amount=money(sale_return.refunded_amount),
+                description=(
+                    f"Reembolso devolución {sale_return.return_number}"
+                ),
+                reference_type=CashReferenceTypes.SALE_RETURN,
+                reference_id=reference_id,
+            )
+        )
+
     def record_receivable_payment_movement_in_transaction(
         self, payment, account, user_id: UUID
     ) -> CashMovement | None:

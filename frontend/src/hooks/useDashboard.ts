@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AuthUser } from '../types/auth';
 import type { ApiSale } from '../types/sale';
 import type { ApiReceivableAccount } from '../types/customer';
@@ -131,11 +131,20 @@ function buildWeek(from: Date): DayTotal[] {
   return days;
 }
 
+function startOfDay(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0);
+}
+
+function endOfDay(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999);
+}
+
 export function useDashboard(user: AuthUser | null): UseDashboardResult {
   const [data, setData] = useState<DashboardData>(EMPTY_DATA);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const hasLoadedRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -145,102 +154,122 @@ export function useDashboard(user: AuthUser | null): UseDashboardResult {
       setError(null);
       const next: DashboardData = { ...EMPTY_DATA };
       const now = new Date();
-      const todayStart = new Date(
-        now.getFullYear(),
-        now.getMonth(),
-        now.getDate(),
-        0,
-        0,
-        0,
-        0,
-      );
-      const todayEnd = new Date(
-        now.getFullYear(),
-        now.getMonth(),
-        now.getDate(),
-        23,
-        59,
-        59,
-        999,
-      );
-      const weekStart = new Date(
-        now.getFullYear(),
-        now.getMonth(),
-        now.getDate() - 6,
-        0,
-        0,
-        0,
-        0,
-      );
+      const todayStart = startOfDay(now);
+      const todayEnd = endOfDay(now);
+      const weekStart = startOfDay(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6));
+      const errors: string[] = [];
 
       try {
         if (userHasPermission(user, 'sales.read')) {
-          const { sales } = await collectSales(
-            weekStart.toISOString(),
-            todayEnd.toISOString(),
-          );
-          next.recentSales = sales.slice(-5).reverse();
-          next.salesWeek = buildWeek(weekStart);
-          const todayKey = dayKey(todayStart);
-          for (const sale of sales) {
-            const date = new Date(sale.confirmed_at ?? sale.created_at);
-            const key = dayKey(date);
-            const day = next.salesWeek.find((item) => item.key === key);
-            if (day) {
-              day.total += parseFloat(sale.total) || 0;
-              day.count += 1;
+          try {
+            const { sales } = await collectSales(weekStart.toISOString(), todayEnd.toISOString());
+            next.recentSales = [...sales].sort((a, b) => {
+              const aTime = new Date(a.confirmed_at ?? a.created_at).getTime();
+              const bTime = new Date(b.confirmed_at ?? b.created_at).getTime();
+              return bTime - aTime;
+            }).slice(0, 5);
+            next.salesWeek = buildWeek(weekStart);
+            const todayKey = dayKey(todayStart);
+            for (const sale of sales) {
+              const date = new Date(sale.confirmed_at ?? sale.created_at);
+              const key = dayKey(date);
+              const day = next.salesWeek.find((item) => item.key === key);
+              const amount = parseFloat(String(sale.total)) || 0;
+              if (day) {
+                day.total += amount;
+                day.count += 1;
+              }
+              if (key === todayKey) {
+                next.salesTodayTotal += amount;
+                next.salesTodayCount += 1;
+              }
             }
-            if (key === todayKey) {
-              next.salesTodayTotal += parseFloat(sale.total) || 0;
-              next.salesTodayCount += 1;
-            }
+            next.salesTodayAvg =
+              next.salesTodayCount > 0
+                ? next.salesTodayTotal / next.salesTodayCount
+                : 0;
+            // Mantener todos los días de la semana para mostrar ceros cuando corresponde
+            next.salesWeek = next.salesWeek.map((day) => ({ ...day }));
+          } catch {
+            errors.push('No se pudieron cargar las ventas del panel.');
           }
-          next.salesTodayAvg =
-            next.salesTodayCount > 0
-              ? next.salesTodayTotal / next.salesTodayCount
-              : 0;
-          next.salesWeek = next.salesWeek.filter(
-            (day) => day.count > 0 || day.isToday,
-          );
         }
 
         if (userHasPermission(user, 'products.read')) {
-          const all = await listProducts({ limit: 1 });
-          next.productsTotal = all.total;
+          try {
+            const all = await listProducts({ limit: 1 });
+            next.productsTotal = all.total;
+          } catch {
+            errors.push('No se pudieron cargar los productos del panel.');
+          }
         }
 
         if (userHasPermission(user, 'inventory.read')) {
-          const low = await listLowStock();
-          next.lowStock = low;
-          next.lowStockCount = low.length;
+          try {
+            const low = await listLowStock();
+            next.lowStock = low;
+            next.lowStockCount = low.length;
+          } catch {
+            errors.push('No se pudo cargar el inventario con stock bajo.');
+          }
         }
 
         if (userHasPermission(user, 'customers.read')) {
-          const customers = await listCustomers({ limit: 1 });
-          next.customersTotal = customers.total;
+          try {
+            const customers = await listCustomers({ limit: 1 });
+            next.customersTotal = customers.total;
+          } catch {
+            errors.push('No se pudieron cargar los clientes del panel.');
+          }
         }
 
         if (userHasPermission(user, 'receivables.read')) {
-          const open = await flatten(collectReceivables('OPEN'));
-          const partial = await flatten(collectReceivables('PARTIALLY_PAID'));
-          next.receivableOpenCount = open.length + partial.length;
-          next.receivableBalance = [...open, ...partial].reduce(
-            (sum, account) => sum + (parseFloat(account.balance) || 0),
-            0,
-          );
+          try {
+            const open = await flatten(collectReceivables('OPEN'));
+            const partial = await flatten(collectReceivables('PARTIALLY_PAID'));
+            next.receivableOpenCount = open.length + partial.length;
+            next.receivableBalance = [...open, ...partial].reduce(
+              (sum, account) => sum + (parseFloat(String(account.balance)) || 0),
+              0,
+            );
+          } catch {
+            errors.push('No se pudieron cargar las cuentas por cobrar.');
+          }
         }
 
         if (userHasPermission(user, 'cash.read')) {
-          next.currentRegister = await getCurrentRegister();
+          try {
+            next.currentRegister = await getCurrentRegister();
+          } catch {
+            errors.push('No se pudo consultar el estado de caja.');
+          }
         }
 
         if (userHasPermission(user, 'ai.read')) {
-          const { getAnalysisHistory } = await import('../services/ai');
-          next.aiHistory = await getAnalysisHistory(0, 3);
+          try {
+            const { getAnalysisHistory } = await import('../services/ai');
+            next.aiHistory = await getAnalysisHistory(0, 3);
+          } catch {
+            // Historial IA opcional; no debe romper el dashboard
+          }
         }
 
         if (!cancelled) {
-          setData(next);
+          setData((prev) => {
+            // Si ya hay datos cargados y solo hay errores parciales, conservar datos previos donde aplique
+            if (hasLoadedRef.current && errors.length > 0) {
+              return {
+                ...next,
+                recentSales: next.recentSales.length > 0 ? next.recentSales : prev.recentSales,
+                salesWeek: next.salesWeek.length > 0 ? next.salesWeek : prev.salesWeek,
+                lowStock: next.lowStock.length > 0 || errors.some((e) => e.includes('inventario')) ? next.lowStock : prev.lowStock,
+                aiHistory: next.aiHistory.length > 0 ? next.aiHistory : prev.aiHistory,
+              };
+            }
+            return next;
+          });
+          hasLoadedRef.current = true;
+          setError(errors.length > 0 ? errors.join(' ') : null);
           setLoading(false);
         }
       } catch {
@@ -253,8 +282,14 @@ export function useDashboard(user: AuthUser | null): UseDashboardResult {
 
     void load();
 
+    const handleFocus = () => {
+      setAttempt((value) => value + 1);
+    };
+    window.addEventListener('focus', handleFocus);
+
     return () => {
       cancelled = true;
+      window.removeEventListener('focus', handleFocus);
     };
   }, [user, attempt]);
 

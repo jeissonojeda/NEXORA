@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.core.exceptions import AppError
 from app.models.customer import Customer
+from app.models.product import Product
 from app.models.purchase import MovementReferences
 from app.models.sale import (
     FULL_PAYMENT_METHODS,
@@ -161,6 +162,15 @@ class SaleService:
         )
         discount = money(sale.discount)
         tax = money(sale.tax)
+        if tax == 0:
+            # Si no se especificó un impuesto a nivel de cabecera, derivarlo
+            # de los impuestos de los ítems (snapshot por producto/categoría).
+            items_tax = money(
+                sum((item.tax for item in sale.items), Decimal("0"))
+            )
+            if items_tax > 0:
+                tax = items_tax
+                sale.tax = tax
         if discount > subtotal:
             raise AppError(
                 status_code=422,
@@ -253,7 +263,7 @@ class SaleService:
     # ------------------------------------------------------------------
     # CRUD
     # ------------------------------------------------------------------
-    def create_sale(
+    def create_sale_in_transaction(
         self,
         created_by: UUID,
         customer_id: UUID | None = None,
@@ -264,6 +274,12 @@ class SaleService:
         tax: Decimal = Decimal("0"),
         items: list[dict[str, Any]] | None = None,
     ) -> Sale:
+        """Núcleo de creación SIN hacer commit (solo flush).
+
+        Participa en la transacción del llamador (p. ej. un cambio de venta,
+        que crea la devolución y la nueva venta de reemplazo de forma atómica).
+        Valida cliente/productos/ítems duplicados igual que create_sale.
+        """
         self._resolve_payment_customer(payment_method, customer_id)
 
         prepared: list[dict[str, Any]] = []
@@ -280,28 +296,52 @@ class SaleService:
             seen_products.add(product_id)
             prepared.append(raw)
 
+        self._advisory_lock(self.db)
+        sale = Sale(
+            customer_id=customer_id,
+            sale_number=self._next_sale_number(),
+            status=SaleStatuses.DRAFT,
+            payment_method=payment_method,
+            amount_paid=money(amount_paid or Decimal("0")),
+            change_due=Decimal("0"),
+            subtotal=Decimal("0"),
+            discount=money(discount),
+            tax=money(tax),
+            total=Decimal("0"),
+            notes=notes,
+            created_by=created_by,
+        )
+        for raw in prepared:
+            item = self._build_item_from_payload(raw)
+            sale.items.append(item)
+        self._recalculate_header(sale)
+        self.sales.add(sale)
+        self.db.flush()
+        return sale
+
+    def create_sale(
+        self,
+        created_by: UUID,
+        customer_id: UUID | None = None,
+        payment_method: str = PaymentMethods.CASH,
+        amount_paid: Decimal | None = None,
+        notes: str | None = None,
+        discount: Decimal = Decimal("0"),
+        tax: Decimal = Decimal("0"),
+        items: list[dict[str, Any]] | None = None,
+    ) -> Sale:
         for attempt in range(MAX_NUMBER_RETRIES):
             try:
-                self._advisory_lock(self.db)
-                sale = Sale(
-                    customer_id=customer_id,
-                    sale_number=self._next_sale_number(),
-                    status=SaleStatuses.DRAFT,
-                    payment_method=payment_method,
-                    amount_paid=money(amount_paid or Decimal("0")),
-                    change_due=Decimal("0"),
-                    subtotal=Decimal("0"),
-                    discount=money(discount),
-                    tax=money(tax),
-                    total=Decimal("0"),
-                    notes=notes,
+                sale = self.create_sale_in_transaction(
                     created_by=created_by,
+                    customer_id=customer_id,
+                    payment_method=payment_method,
+                    amount_paid=amount_paid,
+                    notes=notes,
+                    discount=discount,
+                    tax=tax,
+                    items=items,
                 )
-                for raw in prepared:
-                    item = self._build_item_from_payload(raw)
-                    sale.items.append(item)
-                self._recalculate_header(sale)
-                self.sales.add(sale)
                 self.db.commit()
                 self.db.refresh(sale)
                 return sale
@@ -314,21 +354,65 @@ class SaleService:
             message="No se pudo generar el número de venta, intente nuevamente",
         )
 
+    def _resolve_item_tax(
+        self,
+        raw: dict[str, Any],
+        product: Product,
+        quantity: int,
+        unit_price: Decimal,
+        discount: Decimal,
+    ) -> tuple[Decimal, Decimal, str | None]:
+        """Resuelve ``(tax_rate, tax_amount, tax_name)`` de un ítem.
+
+        Prioridad: si el payload trae el importe ``tax`` se respeta; si trae
+        ``tax_rate`` se calcula; si no trae nada se usa el impuesto efectivo
+        del producto (override del producto o el de su categoría).
+        """
+        explicit_tax = raw.get("tax")
+        rate = raw.get("tax_rate")
+        name = raw.get("tax_name")
+
+        # Un importe explícito > 0 se respeta tal cual.
+        if explicit_tax is not None and money(explicit_tax) > 0:
+            rate_value = money(rate) if rate is not None else money(0)
+            return rate_value, money(explicit_tax), name
+
+        # Sin importe: usar el porcentaje enviado o el impuesto efectivo.
+        if rate is None:
+            effective = product.effective_tax
+            if effective is not None:
+                rate = effective.rate
+                name = name or effective.name
+
+        rate_value = money(rate) if rate is not None else money(0)
+        base = money(Decimal(quantity) * money(unit_price)) - money(discount)
+        if base < 0:
+            base = Decimal("0")
+        tax_amount = money(base * rate_value / Decimal("100"))
+        return rate_value, tax_amount, name
+
     def _build_item_from_payload(self, raw: dict[str, Any]) -> SaleItem:
         product_id = UUID(str(raw["product_id"]))
+        product = self.products.get_by_id(product_id)
+        assert product is not None  # validado por el llamador
         unit_price = raw.get("unit_price")
         if unit_price is None:
             # Snapshot del precio de venta actual del producto.
-            product = self.products.get_by_id(product_id)
-            assert product is not None  # validado por el llamador
             unit_price = product.sale_price
+        quantity = int(raw["quantity"])
+        discount = money(raw.get("discount") or Decimal("0"))
+        rate, tax_amount, tax_name = self._resolve_item_tax(
+            raw, product, quantity, money(unit_price), discount
+        )
         return self._fill_item(
             SaleItem(
                 product_id=product_id,
-                quantity=int(raw["quantity"]),
+                quantity=quantity,
                 unit_price=money(unit_price),
-                discount=money(raw.get("discount") or Decimal("0")),
-                tax=money(raw.get("tax") or Decimal("0")),
+                discount=discount,
+                tax=tax_amount,
+                tax_rate=rate,
+                tax_name=tax_name,
                 subtotal=Decimal("0"),
                 total=Decimal("0"),
             )
@@ -428,6 +512,8 @@ class SaleService:
         unit_price: Decimal | None = None,
         discount: Decimal = Decimal("0"),
         tax: Decimal = Decimal("0"),
+        tax_rate: Decimal | None = None,
+        tax_name: str | None = None,
     ) -> SaleItem:
         sale = self._get_sale_with_items(sale_id)
         self._ensure_editable(sale)
@@ -439,10 +525,19 @@ class SaleService:
                 message="El producto ya está en la venta",
             )
 
+        product = self.products.get_by_id(product_id)
+        assert product is not None
         if unit_price is None:
-            product = self.products.get_by_id(product_id)
-            assert product is not None
             unit_price = product.sale_price
+
+        raw = {
+            "tax": None if (tax is None or money(tax) == 0) else tax,
+            "tax_rate": tax_rate,
+            "tax_name": tax_name,
+        }
+        rate, tax_amount, resolved_name = self._resolve_item_tax(
+            raw, product, quantity, money(unit_price), money(discount)
+        )
 
         item = self._fill_item(
             SaleItem(
@@ -451,7 +546,9 @@ class SaleService:
                 quantity=quantity,
                 unit_price=money(unit_price),
                 discount=money(discount),
-                tax=money(tax),
+                tax=tax_amount,
+                tax_rate=rate,
+                tax_name=resolved_name,
                 subtotal=Decimal("0"),
                 total=Decimal("0"),
             )
@@ -476,8 +573,19 @@ class SaleService:
             item.unit_price = money(fields["unit_price"])
         if fields.get("discount") is not None:
             item.discount = money(fields["discount"])
+        if fields.get("tax_rate") is not None:
+            item.tax_rate = money(fields["tax_rate"])
+        if "tax_name" in fields:
+            item.tax_name = fields.get("tax_name")
         if fields.get("tax") is not None:
             item.tax = money(fields["tax"])
+        elif fields.get("tax_rate") is not None:
+            base = money(
+                Decimal(item.quantity) * money(item.unit_price)
+            ) - money(item.discount)
+            if base < 0:
+                base = Decimal("0")
+            item.tax = money(base * money(item.tax_rate) / Decimal("100"))
 
         self._fill_item(item)
         self._recalculate_header(sale)
@@ -498,85 +606,95 @@ class SaleService:
     # ------------------------------------------------------------------
     # Confirmación (transacción única + idempotencia)
     # ------------------------------------------------------------------
-    def confirm_sale(self, sale_id: UUID, confirmed_by: UUID) -> Sale:
-        try:
-            sale = self.sales.get_for_update(sale_id)
-            if sale is None:
-                raise AppError(
-                    status_code=404,
-                    error_code="SALE_NOT_FOUND",
-                    message="Venta no encontrada",
-                )
+    def confirm_sale_in_transaction(self, sale_id: UUID, confirmed_by: UUID) -> Sale:
+        """Núcleo de confirmación SIN hacer commit.
 
-            if sale.status == SaleStatuses.CONFIRMED:
-                raise AppError(
-                    status_code=409,
-                    error_code="SALE_ALREADY_CONFIRMED",
-                    message="La venta ya fue confirmada",
-                )
-            if sale.status == SaleStatuses.CANCELLED:
-                raise AppError(
-                    status_code=409,
-                    error_code="SALE_CANCELLED",
-                    message="La venta está cancelada y no puede confirmarse",
-                )
-            if not sale.items:
-                raise AppError(
-                    status_code=422,
-                    error_code="SALE_EMPTY",
-                    message="La venta no tiene productos",
-                )
-
-            for item in sale.items:
-                self._validate_product(item.product_id)
-
-            if sale.payment_method == PaymentMethods.CREDIT:
-                if sale.customer_id is None:
-                    raise AppError(
-                        status_code=422,
-                        error_code="CUSTOMER_REQUIRED_FOR_CREDIT",
-                        message=(
-                            "La venta a crédito requiere un cliente asociado"
-                        ),
-                    )
-                receivables = ReceivableService(self.db)
-
-            # Único punto de modificación de stock: InventoryService.
-            # apply_exit NO hace commit: todo queda en esta transacción.
-            inventory = InventoryService(self.db)
-            for item in sale.items:
-                inventory.apply_exit(
-                    product_id=item.product_id,
-                    quantity=item.quantity,
-                    created_by=confirmed_by,
-                    reason=f"Venta {sale.sale_number}",
-                    reference_id=str(sale.id),
-                    reference_type=MovementReferences.SALE,
-                )
-
-            self._normalize_payment_at_confirm(sale)
-
-            if sale.payment_method == PaymentMethods.CREDIT:
-                # Misma transacción: si falla el cupo, el ROLLBACK deshace
-                # también las salidas de stock ya aplicadas.
-                receivables.create_receivable_in_transaction(
-                    customer_id=sale.customer_id,
-                    original_amount=sale.total,
-                    description=f"Venta {sale.sale_number}",
-                    reference_type=MovementReferences.SALE,
-                    reference_id=str(sale.id),
-                )
-
-            sale.status = SaleStatuses.CONFIRMED
-            sale.confirmed_at = datetime.now(timezone.utc)
-
-            # Caja: movimiento SALE (efectivo/tarjeta/transferencia) dentro
-            # de la misma transacción si el cajero tiene turno abierto;
-            # idempotente por UNIQUE(reference_type, reference_id).
-            CashService(self.db).record_sale_movement_in_transaction(
-                sale, user_id=confirmed_by
+        Participa en la transacción del llamador (p. ej. un cambio de venta,
+        donde la devolución y la nueva venta se confirman de forma atómica).
+        Bloquea la fila de la venta hasta el COMMIT del llamador.
+        """
+        sale = self.sales.get_for_update(sale_id)
+        if sale is None:
+            raise AppError(
+                status_code=404,
+                error_code="SALE_NOT_FOUND",
+                message="Venta no encontrada",
             )
 
+        if sale.status == SaleStatuses.CONFIRMED:
+            raise AppError(
+                status_code=409,
+                error_code="SALE_ALREADY_CONFIRMED",
+                message="La venta ya fue confirmada",
+            )
+        if sale.status == SaleStatuses.CANCELLED:
+            raise AppError(
+                status_code=409,
+                error_code="SALE_CANCELLED",
+                message="La venta está cancelada y no puede confirmarse",
+            )
+        if not sale.items:
+            raise AppError(
+                status_code=422,
+                error_code="SALE_EMPTY",
+                message="La venta no tiene productos",
+            )
+
+        for item in sale.items:
+            self._validate_product(item.product_id)
+
+        receivables = None
+        if sale.payment_method == PaymentMethods.CREDIT:
+            if sale.customer_id is None:
+                raise AppError(
+                    status_code=422,
+                    error_code="CUSTOMER_REQUIRED_FOR_CREDIT",
+                    message=(
+                        "La venta a crédito requiere un cliente asociado"
+                    ),
+                )
+            receivables = ReceivableService(self.db)
+
+        # Único punto de modificación de stock: InventoryService.
+        # apply_exit NO hace commit: todo queda en esta transacción.
+        inventory = InventoryService(self.db)
+        for item in sale.items:
+            inventory.apply_exit(
+                product_id=item.product_id,
+                quantity=item.quantity,
+                created_by=confirmed_by,
+                reason=f"Venta {sale.sale_number}",
+                reference_id=str(sale.id),
+                reference_type=MovementReferences.SALE,
+            )
+
+        self._normalize_payment_at_confirm(sale)
+
+        if receivables is not None:
+            # Misma transacción: si falla el cupo, el ROLLBACK deshace
+            # también las salidas de stock ya aplicadas.
+            receivables.create_receivable_in_transaction(
+                customer_id=sale.customer_id,
+                original_amount=sale.total,
+                description=f"Venta {sale.sale_number}",
+                reference_type=MovementReferences.SALE,
+                reference_id=str(sale.id),
+            )
+
+        sale.status = SaleStatuses.CONFIRMED
+        sale.confirmed_at = datetime.now(timezone.utc)
+
+        # Caja: movimiento SALE (efectivo/tarjeta/transferencia) dentro
+        # de la misma transacción si el cajero tiene turno abierto;
+        # idempotente por UNIQUE(reference_type, reference_id).
+        CashService(self.db).record_sale_movement_in_transaction(
+            sale, user_id=confirmed_by
+        )
+        return sale
+
+    def confirm_sale(self, sale_id: UUID, confirmed_by: UUID) -> Sale:
+        try:
+            sale = self.confirm_sale_in_transaction(sale_id, confirmed_by)
             self.db.commit()
         except Exception:
             self.db.rollback()

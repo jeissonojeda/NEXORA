@@ -76,10 +76,13 @@ def create_product(
         name=payload.name,
         barcode=payload.barcode,
         description=payload.description,
+        unit=payload.unit,
         purchase_price=payload.purchase_price,
         sale_price=payload.sale_price,
+        profit_percent=payload.profit_percent,
         category_id=payload.category_id,
         supplier_id=payload.supplier_id,
+        tax_id=payload.tax_id,
         stock=payload.stock,
         minimum_stock=payload.minimum_stock,
     )

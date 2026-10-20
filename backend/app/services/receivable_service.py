@@ -337,6 +337,67 @@ class ReceivableService:
         return payment, True
 
     # ------------------------------------------------------------------
+    # Reembolso de crédito (devolución de venta a crédito)
+    # ------------------------------------------------------------------
+    def apply_refund_in_transaction(
+        self,
+        account_id: UUID,
+        amount: Decimal,
+        description: str | None = None,
+    ) -> ReceivableAccount:
+        """Reduce el saldo de una cuenta por cobrar por una devolución.
+
+        SIN commit: participa en la transacción del llamador (devolución de
+        venta). Bloquea la fila de la cuenta y del cliente. El monto no puede
+        exceder el saldo pendiente (un reembolso mayor debería ir en efectivo).
+        """
+        refund = money(amount)
+        if refund <= 0:
+            raise AppError(
+                status_code=422,
+                error_code="REFUND_AMOUNT_POSITIVE",
+                message="El reembolso debe ser mayor que cero",
+            )
+        account = self.receivables.get_for_update(account_id)
+        if account is None:
+            raise AppError(
+                status_code=404,
+                error_code="RECEIVABLE_NOT_FOUND",
+                message="Cuenta por cobrar no encontrada",
+            )
+        if account.status == ReceivableAccountStatuses.CANCELLED:
+            raise AppError(
+                status_code=409,
+                error_code="RECEIVABLE_CANCELLED",
+                message="La cuenta está cancelada y no admite reembolsos",
+            )
+        balance = money(account.balance)
+        if refund > balance:
+            raise AppError(
+                status_code=409,
+                error_code="REFUND_EXCEEDS_BALANCE",
+                message=(
+                    f"El reembolso ({refund}) excede el saldo pendiente "
+                    f"({balance}); use reembolso en efectivo"
+                ),
+            )
+        customer = self.credit.lock_customer(account.customer_id)
+        # Nota de crédito: la devolución reduce el monto original de la
+        # cuenta y su saldo; paid_amount (lo ya abonado) se conserva como
+        # historial. Invariante balance = original - paid se mantiene.
+        account.original_amount = money(account.original_amount - refund)
+        account.balance = money(balance - refund)
+        account.status = (
+            ReceivableAccountStatuses.PAID
+            if account.balance == 0
+            else ReceivableAccountStatuses.PARTIALLY_PAID
+        )
+        if description:
+            account.description = account.description or description
+        self.credit.decrease_balance(customer, refund)
+        return account
+
+    # ------------------------------------------------------------------
     # Anulación (write-off del saldo restante)
     # ------------------------------------------------------------------
     def cancel_receivable(self, account_id: UUID) -> ReceivableAccount:

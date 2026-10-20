@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { extractErrorMessage, useAsync } from '../../hooks/useAsync';
 import {
@@ -8,27 +9,44 @@ import {
   listSuppliers,
   updateSupplier,
 } from '../../services/suppliers';
-import type { ApiSupplier, ApiSupplierDetail, SupplierFormValues } from '../../types/catalog';
-import SupplierDetailModal from '../../components/domain/SupplierDetailModal';
-import SupplierForm from '../../components/domain/SupplierForm';
-import Badge from '../../components/ui/Badge';
-import ConfirmDialog from '../../components/ui/ConfirmDialog';
-import EmptyState from '../../components/ui/EmptyState';
-import ErrorAlert from '../../components/ui/ErrorAlert';
-import LoadingState from '../../components/ui/LoadingState';
-import Modal from '../../components/ui/Modal';
-import Pagination from '../../components/ui/Pagination';
-import PageHeader from '../../components/ui/PageHeader';
-import Icon from '../../components/ui/Icon';
+import { listPurchases } from '../../services/purchases';
+import type {
+  ApiSupplier,
+  ApiSupplierDetail,
+  SupplierFormValues,
+} from '../../types/catalog';
+import type { PurchaseStatus } from '../../types/purchase';
+import { purchaseStatusLabel } from '../../types/purchase';
+import { userHasPermission } from '../../utils/permissions';
+import { formatCurrency, formatDateTime } from '../../utils/format';
+import SupplierDetailModal from './SupplierDetailModal';
+import SupplierForm from './SupplierForm';
+import Badge from '../ui/Badge';
+import ConfirmDialog from '../ui/ConfirmDialog';
+import EmptyState from '../ui/EmptyState';
+import ErrorAlert from '../ui/ErrorAlert';
+import LoadingState from '../ui/LoadingState';
+import Modal from '../ui/Modal';
+import Pagination from '../ui/Pagination';
+import Icon from '../ui/Icon';
 
 const PAGE_SIZE = 10;
 
-export default function SuppliersPage() {
+const STATUS_TONE: Record<PurchaseStatus, 'gray' | 'green' | 'red'> = {
+  DRAFT: 'gray',
+  CONFIRMED: 'green',
+  CANCELLED: 'red',
+};
+
+interface SuppliersManagerProps {
+  onChanged?: () => void;
+}
+
+export default function SuppliersManager({ onChanged }: SuppliersManagerProps) {
   const { user } = useAuth();
   const canWrite =
-    user?.roles.some((role) =>
-      ['ADMIN', 'INVENTORY_MANAGER'].includes(role.name),
-    ) ?? false;
+    userHasPermission(user, 'suppliers.create') ||
+    userHasPermission(user, 'suppliers.update');
 
   const [searchInput, setSearchInput] = useState('');
   const [query, setQuery] = useState('');
@@ -39,8 +57,7 @@ export default function SuppliersPage() {
     () =>
       listSuppliers({
         q: query || null,
-        isActive:
-          statusFilter === 'all' ? null : statusFilter === 'active',
+        isActive: statusFilter === 'all' ? null : statusFilter === 'active',
         orderBy: 'name',
         order: 'asc',
         skip: (page - 1) * PAGE_SIZE,
@@ -54,10 +71,10 @@ export default function SuppliersPage() {
     return () => clearTimeout(timer);
   }, [searchInput]);
 
-  function changeStatus(value: string) {
-    setStatusFilter(value);
-    setPage(1);
-  }
+  const [createBusy, setCreateBusy] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [createSuccess, setCreateSuccess] = useState<string | null>(null);
+  const [createKey, setCreateKey] = useState(0);
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<ApiSupplier | null>(null);
@@ -66,6 +83,52 @@ export default function SuppliersPage() {
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [deactivateError, setDeactivateError] = useState<string | null>(null);
+
+  const [historySupplier, setHistorySupplier] = useState<ApiSupplier | null>(null);
+  const historyState = useAsync(
+    () =>
+      historySupplier
+        ? listPurchases({ supplierId: historySupplier.id, limit: 20 })
+        : Promise.resolve({ items: [], total: 0 }),
+    [historySupplier?.id],
+  );
+
+  async function reload() {
+    await suppliersState.reload();
+    onChanged?.();
+  }
+
+  async function handleCreate(values: SupplierFormValues) {
+    setCreateBusy(true);
+    setCreateError(null);
+    try {
+      await createSupplier(values);
+      setCreateSuccess(`Proveedor "${values.name.trim()}" registrado.`);
+      setCreateKey((key) => key + 1);
+      await reload();
+      onChanged?.();
+    } catch (err) {
+      setCreateError(extractErrorMessage(err));
+    } finally {
+      setCreateBusy(false);
+    }
+  }
+
+  async function handleEdit(values: SupplierFormValues) {
+    if (!editing) return;
+    setBusy(true);
+    setFormError(null);
+    try {
+      await updateSupplier(editing.id, values);
+      setFormOpen(false);
+      setEditing(null);
+      await reload();
+    } catch (err) {
+      setFormError(extractErrorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function openDetail(supplier: ApiSupplier) {
     try {
@@ -76,40 +139,6 @@ export default function SuppliersPage() {
     }
   }
 
-  async function handleSubmit(values: SupplierFormValues) {
-    setBusy(true);
-    setFormError(null);
-    try {
-      if (editing) {
-        await updateSupplier(editing.id, values);
-      } else {
-        await createSupplier(values);
-      }
-      setFormOpen(false);
-      setEditing(null);
-      await suppliersState.reload();
-    } catch (err) {
-      setFormError(extractErrorMessage(err));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function toggleSupplierStatus() {
-    if (!editing) return;
-    setBusy(true);
-    setFormError(null);
-    try {
-      await updateSupplier(editing.id, { is_active: !editing.is_active });
-      setEditing({ ...editing, is_active: !editing.is_active });
-      await suppliersState.reload();
-    } catch (err) {
-      setFormError(extractErrorMessage(err));
-    } finally {
-      setBusy(false);
-    }
-  }
-
   async function confirmDeactivate() {
     if (!deactivating) return;
     setBusy(true);
@@ -117,7 +146,7 @@ export default function SuppliersPage() {
     try {
       await deactivateSupplier(deactivating.id);
       setDeactivating(null);
-      await suppliersState.reload();
+      await reload();
     } catch (err) {
       setDeactivateError(extractErrorMessage(err));
     } finally {
@@ -128,32 +157,45 @@ export default function SuppliersPage() {
   const total = suppliersState.data?.total ?? 0;
 
   return (
-    <div className="animate-fade-in space-y-5">
-      <PageHeader
-        title="Proveedores"
-        subtitle="Administra tus proveedores, contactos y datos de facturación."
-        actions={
-          canWrite && (
-            <button
-              type="button"
-              onClick={() => {
-                setEditing(null);
-                setFormError(null);
-                setFormOpen(true);
-              }}
-              className="nx-btn nx-btn-primary"
-            >
-              <Icon name="plus" size={16} />
-              Nuevo proveedor
-            </button>
-          )
-        }
-      />
+    <div className="space-y-4">
+      {createSuccess && (
+        <div
+          role="status"
+          className="flex items-center justify-between gap-3 rounded-lg border border-emerald-300 bg-emerald-100/60 px-4 py-2.5 text-sm text-emerald-900 dark:bg-emerald-500/10 dark:text-emerald-200"
+        >
+          <span className="flex items-center gap-2">
+            <Icon name="check" size={16} />
+            {createSuccess}
+          </span>
+          <button
+            type="button"
+            onClick={() => setCreateSuccess(null)}
+            className="text-xs font-semibold hover:underline"
+          >
+            Cerrar
+          </button>
+        </div>
+      )}
+
+      {canWrite && (
+        <div className="nx-card p-5">
+          <h3 className="mb-3 text-sm font-bold uppercase tracking-widest text-faint">
+            Registrar proveedor
+          </h3>
+          <SupplierForm
+            key={createKey}
+            busy={createBusy}
+            error={createError}
+            submitLabel="Registrar proveedor"
+            onSubmit={(values) => void handleCreate(values)}
+          />
+        </div>
+      )}
 
       {/* Filtros */}
       <div className="nx-card grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="sm:col-span-2 lg:col-span-3">
-          <label htmlFor="supplier-search" className="nx-label">
+          <label htmlFor="sup-search" className="nx-label">
             Buscar por nombre, identificación, email o teléfono
           </label>
           <div className="relative">
@@ -161,22 +203,25 @@ export default function SuppliersPage() {
               <Icon name="search" size={16} />
             </span>
             <input
-              id="supplier-search"
+              id="sup-search"
               value={searchInput}
               onChange={(event) => setSearchInput(event.target.value)}
-              placeholder="Ej. Distribuidora, 3101234, ventas@… , 8888-"
+              placeholder="Ej. Distribuidora, 3101234, ventas@…"
               className="nx-input pl-9"
             />
           </div>
         </div>
         <div>
-          <label htmlFor="supplier-status" className="nx-label">
+          <label htmlFor="sup-status" className="nx-label">
             Estado
           </label>
           <select
-            id="supplier-status"
+            id="sup-status"
             value={statusFilter}
-            onChange={(event) => changeStatus(event.target.value)}
+            onChange={(event) => {
+              setStatusFilter(event.target.value);
+              setPage(1);
+            }}
             className="nx-select"
           >
             <option value="all">Todos</option>
@@ -188,9 +233,7 @@ export default function SuppliersPage() {
 
       <ErrorAlert
         message={suppliersState.error}
-        onRetry={
-          suppliersState.loading ? undefined : () => void suppliersState.reload()
-        }
+        onRetry={suppliersState.loading ? undefined : () => void suppliersState.reload()}
       />
 
       <div className="nx-card overflow-hidden">
@@ -201,8 +244,8 @@ export default function SuppliersPage() {
         ) : total === 0 ? (
           <EmptyState
             title="Sin proveedores"
-            hint="Ajusta la búsqueda o crea el primer proveedor."
-            icon="truck"
+            hint="Registra un proveedor con el formulario de arriba."
+            icon="store"
           />
         ) : (
           <>
@@ -210,11 +253,9 @@ export default function SuppliersPage() {
               <table className="nx-table">
                 <thead>
                   <tr>
-                    <th>Nombre</th>
-                    <th className="hidden md:table-cell">Identificación</th>
-                    <th className="hidden md:table-cell">Contacto / Teléfono</th>
-                    <th className="hidden lg:table-cell">Email</th>
-                    <th className="hidden sm:table-cell">Ciudad</th>
+                    <th>Proveedor</th>
+                    <th className="hidden md:table-cell">Contacto</th>
+                    <th className="hidden sm:table-cell">Teléfono</th>
                     <th className="text-right">Productos</th>
                     <th>Estado</th>
                     <th className="text-right">Acciones</th>
@@ -223,21 +264,19 @@ export default function SuppliersPage() {
                 <tbody>
                   {suppliersState.data?.items.map((supplier) => (
                     <tr key={supplier.id}>
-                      <td className="font-medium text-foreground">{supplier.name}</td>
-                      <td className="hidden font-mono text-xs text-muted md:table-cell">
-                        {supplier.identification || '—'}
-                      </td>
-                      <td className="hidden text-muted md:table-cell">
-                        {supplier.contact_name || '—'}
-                        {supplier.phone && (
-                          <span className="ml-1 text-xs text-faint">· {supplier.phone}</span>
+                      <td>
+                        <p className="font-medium text-foreground">{supplier.name}</p>
+                        {supplier.identification && (
+                          <p className="font-mono text-xs text-faint">
+                            {supplier.identification}
+                          </p>
                         )}
                       </td>
-                      <td className="hidden max-w-[180px] truncate text-muted lg:table-cell">
-                        {supplier.email || '—'}
+                      <td className="hidden text-muted md:table-cell">
+                        {supplier.contact_name || supplier.email || '—'}
                       </td>
                       <td className="hidden text-muted sm:table-cell">
-                        {supplier.city || '—'}
+                        {supplier.phone || '—'}
                       </td>
                       <td className="text-right text-foreground">
                         {supplier.products_count}
@@ -250,6 +289,14 @@ export default function SuppliersPage() {
                         )}
                       </td>
                       <td className="whitespace-nowrap text-right">
+                        <button
+                          type="button"
+                          onClick={() => setHistorySupplier(supplier)}
+                          className="nx-btn nx-btn-sm nx-btn-ghost text-muted"
+                        >
+                          <Icon name="receipt" size={14} />
+                          Historial
+                        </button>
                         <button
                           type="button"
                           onClick={() => void openDetail(supplier)}
@@ -303,6 +350,7 @@ export default function SuppliersPage() {
         )}
       </div>
 
+      {/* Editar proveedor */}
       <Modal
         open={formOpen}
         wide
@@ -312,19 +360,6 @@ export default function SuppliersPage() {
           setEditing(null);
         }}
       >
-        {editing && canWrite && (
-          <div className="mb-4 flex items-center justify-between rounded-lg bg-surface-2 px-3 py-2 text-sm">
-            <span className="text-muted">Estado actual:</span>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => void toggleSupplierStatus()}
-              className="font-medium text-primary hover:brightness-75"
-            >
-              {editing.is_active ? 'Desactivar' : 'Activar'}
-            </button>
-          </div>
-        )}
         <SupplierForm
           key={editing?.id ?? 'new'}
           initial={
@@ -343,15 +378,15 @@ export default function SuppliersPage() {
           }
           busy={busy}
           error={formError}
-          submitLabel={editing ? 'Guardar cambios' : 'Crear proveedor'}
-          onSubmit={(values) => void handleSubmit(values)}
+          submitLabel="Guardar cambios"
+          onSubmit={(values) => void handleEdit(values)}
         />
       </Modal>
 
       <ConfirmDialog
         open={deactivating !== null}
         title="Desactivar proveedor"
-        message={`¿Desactivar "${deactivating?.name}"? Sus productos asociados permanecen intactos; un proveedor nunca se elimina físicamente.`}
+        message={`¿Desactivar "${deactivating?.name}"? Sus productos asociados permanecen intactos.`}
         confirmLabel="Desactivar"
         destructive
         busy={busy}
@@ -362,15 +397,69 @@ export default function SuppliersPage() {
 
       <SupplierDetailModal
         supplier={detail}
-        onClose={() => {
-          setDetail(null);
-          setPage(1);
-        }}
+        onClose={() => setDetail(null)}
       />
 
-      {formError && !formOpen && (
-        <ErrorAlert message={formError} />
-      )}
+      {/* Historial de compras del proveedor */}
+      <Modal
+        open={historySupplier !== null}
+        wide
+        title={`Compras de ${historySupplier?.name ?? ''}`}
+        onClose={() => setHistorySupplier(null)}
+      >
+        {historyState.loading ? (
+          <LoadingState rows={4} />
+        ) : (historyState.data?.total ?? 0) === 0 ? (
+          <EmptyState
+            title="Sin compras"
+            hint="Este proveedor aún no tiene compras registradas."
+            icon="receipt"
+          />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="nx-table">
+              <thead>
+                <tr>
+                  <th>Número</th>
+                  <th className="hidden sm:table-cell">Fecha</th>
+                  <th>Estado</th>
+                  <th className="text-right">Total</th>
+                  <th className="text-right">Ver</th>
+                </tr>
+              </thead>
+              <tbody>
+                {historyState.data?.items.map((purchase) => (
+                  <tr key={purchase.id}>
+                    <td className="font-mono text-xs text-foreground">
+                      {purchase.purchase_number}
+                    </td>
+                    <td className="hidden text-muted sm:table-cell">
+                      {formatDateTime(purchase.created_at)}
+                    </td>
+                    <td>
+                      <Badge tone={STATUS_TONE[purchase.status]}>
+                        {purchaseStatusLabel(purchase.status)}
+                      </Badge>
+                    </td>
+                    <td className="text-right tabular-nums text-foreground">
+                      {formatCurrency(purchase.total)}
+                    </td>
+                    <td className="text-right">
+                      <Link
+                        to={`/purchases/${purchase.id}`}
+                        className="nx-btn nx-btn-sm nx-btn-ghost text-primary"
+                      >
+                        Abrir
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Modal>
+
     </div>
   );
 }

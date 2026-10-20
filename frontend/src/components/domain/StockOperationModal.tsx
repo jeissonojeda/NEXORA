@@ -6,6 +6,13 @@ import { formatCurrency } from '../../utils/format';
 
 export type StockOperationType = 'ENTRY' | 'EXIT' | 'ADJUSTMENT' | 'RETURN';
 
+const STOCK_OPERATION_LABELS: Record<StockOperationType, string> = {
+  ENTRY: 'Entrada',
+  EXIT: 'Salida',
+  ADJUSTMENT: 'Ajuste',
+  RETURN: 'Devolución',
+};
+
 const TITLES: Record<StockOperationType, string> = {
   ENTRY: 'Registrar entrada de stock',
   EXIT: 'Registrar salida de stock',
@@ -13,42 +20,68 @@ const TITLES: Record<StockOperationType, string> = {
   RETURN: 'Registrar devolución',
 };
 
+const OPERATION_HINTS: Record<StockOperationType, string> = {
+  ENTRY: 'Ingresa unidades al inventario (compra, carga inicial, etc.).',
+  EXIT: 'Retira unidades por merma, consumo o traslado.',
+  ADJUSTMENT: 'Fija el stock exacto tras un conteo físico.',
+  RETURN: 'Reingresa unidades devueltas por un cliente.',
+};
+
 interface StockOperationModalProps {
-  operation: StockOperationType | null;
+  open: boolean;
   product: ApiProduct | null;
+  products?: ApiProduct[];
+  initialOperation?: StockOperationType;
   busy: boolean;
   error: string | null;
   onClose: () => void;
-  onSubmitEntryExitReturn: (quantity: number, reason: string, referenceId: string) => void;
-  onSubmitAdjustment: (newStock: number, reason: string) => void;
+  onSubmitEntryExitReturn: (
+    productId: string,
+    operation: StockOperationType,
+    quantity: number,
+    reason: string,
+    referenceId: string,
+  ) => void;
+  onSubmitAdjustment: (productId: string, newStock: number, reason: string) => void;
 }
 
+const OPERATIONS: StockOperationType[] = ['ENTRY', 'EXIT', 'RETURN', 'ADJUSTMENT'];
+
 export default function StockOperationModal({
-  operation,
+  open,
   product,
+  products = [],
+  initialOperation = 'ENTRY',
   busy,
   error,
   onClose,
   onSubmitEntryExitReturn,
   onSubmitAdjustment,
 }: StockOperationModalProps) {
+  const [operation, setOperation] = useState<StockOperationType>(initialOperation);
+  const [selectedProductId, setSelectedProductId] = useState(product?.id ?? '');
   const [quantity, setQuantity] = useState('1');
-  const [newStock, setNewStock] = useState('');
+  const [newStock, setNewStock] = useState(product ? String(product.stock) : '');
   const [reason, setReason] = useState('');
   const [referenceId, setReferenceId] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
-  if (!operation || !product) return null;
+  const effectiveProduct =
+    product ?? products.find((item) => item.id === selectedProductId) ?? null;
   const isAdjustment = operation === 'ADJUSTMENT';
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     const errors: Record<string, string> = {};
+
+    if (!effectiveProduct) {
+      errors.product = 'Selecciona un producto';
+    }
     if (isAdjustment) {
       const value = Number(newStock);
       if (!Number.isInteger(value) || value < 0) {
         errors.newStock = 'Stock objetivo debe ser un entero ≥ 0';
-      } else if (value === product!.stock) {
+      } else if (effectiveProduct && value === effectiveProduct.stock) {
         errors.newStock = 'El stock no cambia; ajuste innecesario';
       }
       if (!reason.trim()) errors.reason = 'El motivo es obligatorio en ajustes';
@@ -56,37 +89,100 @@ export default function StockOperationModal({
       const value = Number(quantity);
       if (!Number.isInteger(value) || value <= 0) {
         errors.quantity = 'Cantidad debe ser un entero mayor a 0';
-      } else if (operation === 'EXIT' && value > product!.stock) {
-        errors.quantity = `Stock insuficiente (disponible: ${product!.stock})`;
+      } else if (
+        operation === 'EXIT' &&
+        effectiveProduct &&
+        value > effectiveProduct.stock
+      ) {
+        errors.quantity = `Stock insuficiente (disponible: ${effectiveProduct.stock})`;
       }
     }
+
     setFieldErrors(errors);
-    if (Object.keys(errors).length > 0) return;
+    if (Object.keys(errors).length > 0 || !effectiveProduct) return;
 
     if (isAdjustment) {
-      onSubmitAdjustment(Number(newStock), reason.trim());
+      onSubmitAdjustment(effectiveProduct.id, Number(newStock), reason.trim());
     } else {
-      onSubmitEntryExitReturn(Number(quantity), reason.trim(), referenceId.trim());
+      onSubmitEntryExitReturn(
+        effectiveProduct.id,
+        operation,
+        Number(quantity),
+        reason.trim(),
+        referenceId.trim(),
+      );
     }
-    setQuantity('1');
-    setNewStock('');
-    setReason('');
-    setReferenceId('');
-    setFieldErrors({});
   }
 
   return (
-    <Modal open={operation !== null} title={TITLES[operation]} onClose={onClose}>
+    <Modal open={open} title={TITLES[operation]} onClose={onClose}>
       <form onSubmit={handleSubmit} className="space-y-4">
-        <p className="text-sm text-muted">
-          {product.name} — stock actual:{' '}
-          <span className="font-semibold text-foreground">{product.stock}</span> ·{' '}
-          {formatCurrency(product.sale_price)}
-        </p>
+        <div
+          role="tablist"
+          aria-label="Tipo de movimiento"
+          className="grid grid-cols-2 gap-1 rounded-xl bg-surface-2 p-1 sm:grid-cols-4"
+        >
+          {OPERATIONS.map((item) => (
+            <button
+              key={item}
+              type="button"
+              role="tab"
+              aria-selected={operation === item}
+              onClick={() => {
+                setOperation(item);
+                setFieldErrors({});
+              }}
+              disabled={busy}
+              className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+                operation === item
+                  ? 'bg-surface text-foreground shadow-sm'
+                  : 'text-muted hover:text-foreground'
+              }`}
+            >
+              {STOCK_OPERATION_LABELS[item]}
+            </button>
+          ))}
+        </div>
+
+        <p className="text-xs text-faint">{OPERATION_HINTS[operation]}</p>
+
+        {product ? (
+          <p className="text-sm text-muted">
+            {product.name} — stock actual:{' '}
+            <span className="font-semibold text-foreground">{product.stock}</span> ·{' '}
+            {formatCurrency(product.sale_price)}
+          </p>
+        ) : (
+          <div>
+            <label htmlFor="op-product" className="nx-label">
+              Producto <span className="text-red-500">*</span>
+            </label>
+            <select
+              id="op-product"
+              value={selectedProductId}
+              onChange={(event) => {
+                setSelectedProductId(event.target.value);
+                const next = products.find((item) => item.id === event.target.value);
+                setNewStock(next ? String(next.stock) : '');
+              }}
+              disabled={busy}
+              className="nx-select"
+            >
+              <option value="">Seleccionar producto…</option>
+              {products.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name} (stock {item.stock})
+                </option>
+              ))}
+            </select>
+            <InlineError message={fieldErrors.product} />
+          </div>
+        )}
 
         <div>
           <label htmlFor="op-quantity" className="nx-label">
-            Cantidad <span className="text-red-500">*</span>
+            {isAdjustment ? 'Stock objetivo' : 'Cantidad'}{' '}
+            <span className="text-red-500">*</span>
           </label>
           <input
             id="op-quantity"

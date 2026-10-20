@@ -23,13 +23,14 @@ from app.models.customer import Customer
 from app.models.supplier import Supplier
 from app.models.user import User
 from app.repositories.report_repository import ReportRepository
-from app.reports.excel import build_excel
+from app.reports.excel import build_excel, currency_number_format
 from app.reports.pdf import (
     build_pdf,
     format_date_only,
     format_datetime_value,
     format_money,
 )
+from app.services.settings_service import SettingsService
 
 
 class ReportKeys:
@@ -225,17 +226,25 @@ class ReportService:
         header_lines = list(content.filters_applied) + [
             (note, "") for note in content.notes
         ]
+        # Moneda configurada (símbolo + decimales) para los montos exportados.
+        settings = SettingsService(self.db).get_settings()
+        symbol = settings.currency_symbol
+        decimals = settings.decimal_places
         if export_format == "pdf":
             payload = build_pdf(
                 title=self._document_title(content),
                 generated_at=generated_at,
                 filters_applied=header_lines,
                 column_labels=[c["label"] for c in content.columns],
-                rows=self._pdf_rows(content.columns, content.rows),
+                rows=self._pdf_rows(
+                    content.columns, content.rows, symbol, decimals
+                ),
                 totals_rows=[
                     (
                         label,
-                        self._pdf_totals_row(label, content.columns, totals),
+                        self._pdf_totals_row(
+                            label, content.columns, totals, symbol, decimals
+                        ),
                     )
                     for label, totals in content.totals_rows
                 ],
@@ -248,6 +257,7 @@ class ReportService:
                 columns=content.columns,
                 rows=content.rows,
                 totals_rows=content.totals_rows,
+                money_format=currency_number_format(symbol, decimals),
             )
         extension = "pdf" if export_format == "pdf" else "xlsx"
         filename = self._file_name(content.definition, extension, generated_at)
@@ -405,9 +415,14 @@ class ReportService:
         return f"reporte-{definition.key}-{stamp}.{extension}"
 
     @staticmethod
-    def _cell_text(value: Any, column_type: str) -> str:
+    def _cell_text(
+        value: Any,
+        column_type: str,
+        symbol: str | None = None,
+        decimals: int = 2,
+    ) -> str:
         if column_type == "money":
-            return format_money(value)
+            return format_money(value, symbol=symbol, decimals=decimals)
         if column_type == "datetime":
             return format_datetime_value(value)
         if column_type == "date":
@@ -417,13 +432,19 @@ class ReportService:
         return str(value)
 
     def _pdf_rows(
-        self, columns: list[dict[str, str]], rows: list[dict[str, Any]]
+        self,
+        columns: list[dict[str, str]],
+        rows: list[dict[str, Any]],
+        symbol: str | None = None,
+        decimals: int = 2,
     ) -> list[list[str]]:
         formatted: list[list[str]] = []
         for row in rows:
             formatted.append(
                 [
-                    self._cell_text(row.get(col["key"]), col["type"])
+                    self._cell_text(
+                        row.get(col["key"]), col["type"], symbol, decimals
+                    )
                     for col in columns
                 ]
             )
@@ -434,12 +455,16 @@ class ReportService:
         label: str,
         columns: list[dict[str, str]],
         totals_map: dict[str, Any],
+        symbol: str | None = None,
+        decimals: int = 2,
     ) -> list[object]:
         values: list[object] = [label]
         for col in columns[1:]:
             value = totals_map.get(col["key"])
             values.append(
-                "" if value is None else self._cell_text(value, col["type"])
+                ""
+                if value is None
+                else self._cell_text(value, col["type"], symbol, decimals)
             )
         return values
 

@@ -152,7 +152,10 @@ class SaleItem(Base):
     # nunca recalcula ventas pasadas.
     unit_price: Mapped[Decimal] = mapped_column(Numeric(12, 2))
     discount: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0"))
+    # Snapshot del impuesto aplicado (porcentaje y nombre) + valor monetario.
     tax: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0"))
+    tax_rate: Mapped[Decimal] = mapped_column(Numeric(5, 2), default=Decimal("0"))
+    tax_name: Mapped[str | None] = mapped_column(String(80), nullable=True)
     subtotal: Mapped[Decimal] = mapped_column(Numeric(14, 2))
     total: Mapped[Decimal] = mapped_column(Numeric(14, 2))
     created_at: Mapped[datetime] = mapped_column(

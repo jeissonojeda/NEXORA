@@ -194,7 +194,7 @@ El frontend estará disponible en: http://localhost:5173
 | GET | `/api/auth/me` | Usuario autenticado actual | JWT válido |
 | GET/POST | `/api/users` | Listar / crear usuarios | `users.read` / `users.create` |
 | GET/PATCH/DELETE | `/api/users/{id}` | Ver / actualizar / desactivar usuario | `users.*` |
-| GET/POST | `/api/categories` | Listar / crear categorías | `categories.read` / `categories.create` |
+| GET/POST | `/api/categories` | Listar (array plano con `products_count`) / crear categorías | `categories.read` / `categories.create` |
 | GET/PATCH/DELETE | `/api/categories/{id}` | Ver / actualizar / desactivar categoría | `categories.*` |
 | GET | `/api/products?q=&category_id=&supplier_id=&is_active=&low_stock=` | Listar productos (filtros + `{items,total}`) | `products.read` |
 | GET | `/api/products/barcode/{barcode}` | Consulta por código de barras (activos) | `products.read` |
@@ -251,6 +251,36 @@ ninguna escritura se ejecuta sin confirmación del usuario.
   `tests/test_ai_operational.py`, `tests/test_ai_invoice.py` (usan
   `tests/fakes.py::FakeGeminiClient`).
 
+## Configuración, precios, impuestos, moneda e impresión (Fase 14)
+
+Configuración en la página `/ajustes` (permiso `settings.read`): moneda (por
+defecto **COP**), datos del negocio, impresión y CRUD de impuestos. El precio de
+venta se calcula como `costo × (1 + utilidad%/100)` (utilidad sobre costo),
+aunque puede sobrescribirse manualmente. Los impuestos son configurables, se
+vinculan a categorías (heredados por sus productos) y se **congelan (snapshot)**
+en cada ítem de venta, por lo que nunca alteran facturas históricas.
+
+| Método | URI | Descripción | Permiso |
+|---|---|---|---|
+| GET | `/api/settings` | Configuración actual | `settings.read` |
+| PUT | `/api/settings` | Actualizar configuración | `settings.update` |
+| GET | `/api/settings/currencies` | Catálogo de monedas | `settings.read` |
+| POST | `/api/settings/reset` | Restaurar valores por defecto | `settings.update` |
+| GET | `/api/taxes` | Listar impuestos (`?include_inactive=`) | `settings.read` |
+| POST | `/api/taxes` | Crear impuesto (nombre único, tasa 0-100) | `settings.update` |
+| PUT | `/api/taxes/{id}` | Actualizar impuesto | `settings.update` |
+| DELETE | `/api/taxes/{id}` | Desactivar impuesto (lógico) | `settings.update` |
+
+- RBAC: `settings.read` para todos los roles (formateo de moneda);
+  `settings.update` solo ADMIN. Escritura de impuestos = ADMIN.
+- Moneda: la configuración es la autoridad; los reportes exportados (PDF/Excel)
+  aplican el símbolo y los decimales configurados.
+- Impresión: el navegador usa `window.print()` + `@media print`/`@page` (ancho
+  58mm/80mm/A5/A4, fuente, cabecera, NIT, contacto y pie configurables). No hay
+  detección ni selección programática de impresora; no se controla el número de
+  copias desde la web (se elige en el diálogo del navegador).
+- Tests: `tests/test_pricing_taxes.py`.
+
 ## Compras y Abastecimiento (Fase 5)
 
 ### Reglas de negocio implementadas
@@ -277,8 +307,13 @@ ninguna escritura se ejecuta sin confirmación del usuario.
 
 ### Frontend
 
-- Rutas `/purchases` (listado con filtros estado/proveedor/fechas) y
-  `/purchases/:id` (detalle editable en DRAFT; solo lectura en otros estados).
+- Ruta `/purchases` = `ComprasProveedoresPage` (pestañas **Registrar compra** y
+  **Proveedores**); `/proveedores` monta la misma página en la pestaña Proveedores
+  y `/purchases/:id` es el detalle (editable en DRAFT; solo lectura en otros
+  estados). El menú lateral tiene una sola entrada "Compras y proveedores".
+- Registrar compra usa un builder en línea (`PurchaseBuilder`): proveedor activo
+  (o creación en línea) → líneas de producto → totales → guardar borrador o
+  confirmar; el botón Confirmar muestra un diálogo explicativo antes de aplicar.
 - El botón Confirmar muestra un diálogo explicativo antes de aplicar el cambio;
   al terminar se recarga el detalle (stock visible en Inventario).
 
@@ -531,7 +566,9 @@ Precios usan `Decimal`/`Numeric(12,2)` y llegan al frontend como **string**
 
 ### Frontend
 
-- Rutas: `/login`, `/categorias`, `/proveedores`, `/productos`, `/inventario`.
+- Rutas: `/login`, `/productos` (con pestaña **Categorías**), `/inventario`,
+  `/compras-proveedores` y `/proveedores` (misma página combinada). La ruta
+  `/categorias` sigue existiendo como envoltorio de `CategoriesManager`.
 - `AuthContext` restaura la sesión desde el token en localStorage al cargar.
 - La UI oculta acciones según rol: ADMIN e INVENTORY_MANAGER pueden editar;
   CASHIER ve todo en modo lectura.

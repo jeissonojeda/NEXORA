@@ -28,7 +28,10 @@ from google.genai import types as genai_types
 from sqlalchemy.orm import Session
 
 from app.ai.gemini_client import GeminiClient, GeminiClientError, gemini_client
+from app.ai.intent import IntentResult, Intents, classify as classify_intent
+from app.ai.local_assistant import LocalAssistant
 from app.ai.tools import (
+    ACTION_NATIVE_PERMISSION,
     ACTION_TOOL_MAP,
     ACTION_TOOL_NAMES,
     READ_EXECUTORS,
@@ -37,7 +40,6 @@ from app.ai.tools import (
 )
 from app.core.config import get_settings
 from app.core.exceptions import AppError
-from app.core.rbac import Permissions
 from app.models.ai_action import AIActionHistory, AIActionStatuses, AIInvoiceScan
 from app.models.supplier import Supplier
 from app.schemas.ai_operational import (
@@ -64,29 +66,43 @@ settings = get_settings()
 
 MAX_TOOL_ITERATIONS = 5
 
-# Permiso nativo requerido por tipo de acción (defensa en profundidad: la IA
-# no puede hacer algo que el rol ya no puede hacer por su cuenta).
-ACTION_NATIVE_PERMISSION: dict[str, str] = {
-    "purchase": Permissions.PURCHASES_CREATE,
-    "inventory": Permissions.INVENTORY_UPDATE,
-    "product": Permissions.PRODUCTS_CREATE,
-    "supplier": Permissions.SUPPLIERS_CREATE,
-    "payment": Permissions.RECEIVABLES_PAYMENT,
-}
-
 _SYSTEM_PROMPT = (
     "Eres NEXORA AI, asistente operativo de un sistema de facturación e "
-    "inventario de supermercado. Responde en español, de forma clara y "
-    "concisa. Puedes consultar datos del negocio usando las herramientas de "
-    "solo lectura disponibles (buscar productos, proveedores, stock bajo, "
-    "contexto global). Para MODIFICAR datos (crear compras, ajustar "
+    "inventario de supermercado. Respondes en español, de forma clara, breve y "
+    "útil, y SIEMPRE con datos reales que obtienes de las herramientas.\n\n"
+    "IDIOMA Y ESTILO: entiende lenguaje natural, sinónimos, expresiones "
+    "coloquiales y errores ortográficos leves. Interpreta la intención del "
+    "usuario aunque no use el término exacto (p. ej. 'existencias', 'cuánto "
+    "queda', 'hay de...', 'stock', 'inventario' significan lo mismo).\n\n"
+    "HERRAMIENTAS DE LECTURA: úsalas para responder (buscar productos y "
+    "proveedores, stock bajo, salud de inventario, resumen de ventas, resumen "
+    "de compras, cuentas por cobrar/clientes, caja y contexto global). Nunca "
+    "inventes productos, cantidades, ventas, clientes ni resultados.\n\n"
+    "CONTEXTO DE CONVERSACIÓN: usa los turnos previos para resolver referencias "
+    "como 'ese producto', 'el último', 'y sus existencias'. Si el usuario ya "
+    "mencionó un producto, continúa con él.\n\n"
+    "AMBIGÜEDAD: si faltan datos o la referencia tiene varias coincidencias, "
+    "pide SOLO la aclaración necesaria y ofrece las opciones encontradas. Si no "
+    "entiendes la petición, explícalo y sugiere ejemplos válidos.\n\n"
+    "ACCIONES DE ESCRITURA: para MODIFICAR datos (crear compras, ajustar "
     "inventario, crear productos/proveedores, registrar pagos) usa las "
-    "herramientas de accion ('create_purchase', 'adjust_inventory', "
-    "'create_product', 'create_supplier', 'register_payment'); estas acciones "
-    "NO se ejecutan tus mismas, REQUIEREN confirmacion del usuario en el "
-    "backend. Nunca inventes IDs ni datos; usa los resultados reales de las "
-    "herramientas."
+    "herramientas de acción ('create_purchase', 'adjust_inventory', "
+    "'create_product', 'create_supplier', 'register_payment'). Estas acciones "
+    "NO se ejecutan por sí solas: quedan capturadas y REQUIEREN confirmación "
+    "explícita del usuario en el backend. Antes de proponerlas, asegúrate de "
+    "tener los IDs reales (product_id, supplier_id, category_id, account_id) "
+    "obtenidos de las herramientas de lectura.\n\n"
+    "NUNCA inventes IDs ni datos; usa los resultados reales de las herramientas."
 )
+
+
+def _permission_for_intent(result: IntentResult) -> str | None:
+    """Permiso IA sugerido por intención de acción (para hints)."""
+    if result.intent == Intents.ADJUST_STOCK:
+        return "ai.inventory"
+    if result.intent == Intents.CREATE_PURCHASE:
+        return "ai.purchase"
+    return None
 
 
 class AIOperationalService:
@@ -124,16 +140,10 @@ class AIOperationalService:
     # ------------------------------------------------------------------
     # Chat con herramientas (solo lectura + propuestas)
     # ------------------------------------------------------------------
-    def chat(self, user, message: str) -> ChatResponse:
+    def chat(self, user, message: str, history: list[Any] | None = None) -> ChatResponse:
+        intent_result = classify_intent(message)
         tool_decls = self._build_all_tool_declarations()
-        contents = [
-            genai_types.Content(
-                role="user", parts=[genai_types.Part(text=_SYSTEM_PROMPT)]
-            ),
-            genai_types.Content(
-                role="user", parts=[genai_types.Part(text=message)]
-            ),
-        ]
+        contents = self._build_chat_contents(message, history, intent_result)
 
         tool_results: list[ToolResult] = []
         action_proposals: list[ActionProposal] = []
@@ -239,16 +249,93 @@ class AIOperationalService:
                 contents.append(
                     genai_types.Content(role="user", parts=response_parts)
                 )
-        except GeminiClientError:
+        except GeminiClientError as e:
+            if e.error_code == "AI_NOT_CONFIGURED":
+                return self._local_fallback(
+                    user,
+                    message,
+                    history,
+                    note=(
+                        "El proveedor de IA (Gemini) no está configurado; "
+                        "respondo en modo local con datos reales del sistema "
+                        "y solo para consultas conocidas."
+                    ),
+                )
             raise
 
+        response_message = result.get("response") or ""
+        if not response_message.strip() and not tool_results and not action_proposals:
+            return self._local_fallback(user, message, history)
+
         return ChatResponse(
-            message=result.get("response") or "",
+            message=response_message,
             tool_results=tool_results,
             action_proposals=action_proposals,
             model_used=result.get("model_used"),
             tokens_used=result.get("tokens_used"),
             duration_ms=result.get("duration_ms"),
+        )
+
+    def _build_chat_contents(
+        self,
+        message: str,
+        history: list[Any] | None,
+        intent_result: IntentResult,
+    ) -> list[Any]:
+        """Construye el historial de contenido enviado a Gemini.
+
+        Incluye los turnos previos (contexto) y una pista de intención
+        determinista que mejora la precisión del modelo.
+        """
+        contents: list[Any] = [
+            genai_types.Content(
+                role="user", parts=[genai_types.Part(text=_SYSTEM_PROMPT)]
+            )
+        ]
+
+        for turn in (history or [])[-8:]:
+            role = getattr(turn, "role", None) or (turn.get("role") if isinstance(turn, dict) else None)
+            text = getattr(turn, "text", None) or (turn.get("text") if isinstance(turn, dict) else None)
+            if not text:
+                continue
+            contents.append(
+                genai_types.Content(
+                    role="model" if role == "assistant" else "user",
+                    parts=[genai_types.Part(text=str(text))],
+                )
+            )
+
+        user_text = message
+        if intent_result.intent != Intents.UNKNOWN:
+            user_text = f"{message}\n\n[Contexto detectado: {intent_result.hint}]"
+        contents.append(
+            genai_types.Content(role="user", parts=[genai_types.Part(text=user_text)])
+        )
+        return contents
+
+    def _local_fallback(
+        self,
+        user,
+        message: str,
+        history: list[Any] | None,
+        note: str | None = None,
+    ) -> ChatResponse:
+        """Responde con el asistente local determinista (solo lectura real).
+
+        Se usa cuando Gemini no está configurado o no devuelve respuesta. Las
+        acciones se proponen pero NUNCA se ejecutan aquí.
+        """
+        answer = LocalAssistant(self.db).respond(user, message, history)
+        message_out = answer.message
+        if note:
+            message_out = f"{message_out}\n\n_Nota: {note}_"
+        return ChatResponse(
+            message=message_out,
+            tool_results=[ToolResult(**t) for t in answer.tool_results],
+            action_proposals=[ActionProposal(**p) for p in answer.action_proposals],
+            model_used="nexora-local",
+            tokens_used=None,
+            duration_ms=None,
         )
 
     def _build_all_tool_declarations(self) -> list[dict[str, Any]]:
